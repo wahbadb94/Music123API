@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30413.136
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SongUploadAPI", "SongUploadAPI\SongUploadAPI.csproj", "{27407D86-71B6-49D4-A387-13DD288FC18E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{27407D86-71B6-49D4-A387-13DD288FC18E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27407D86-71B6-49D4-A387-13DD288FC18E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27407D86-71B6-49D4-A387-13DD288FC18E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{27407D86-71B6-49D4-A387-13DD288FC18E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F1B6BFC7-1678-4009-A349-F88591C80F0B}
+	EndGlobalSection
+EndGlobal
