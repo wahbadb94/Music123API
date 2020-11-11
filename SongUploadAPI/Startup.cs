@@ -154,7 +154,7 @@ namespace SongUploadAPI
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapHub<UpdateHub>("/updates");
+                endpoints.MapHub<JobUpdateHub>("/jobUpdates");
                 endpoints.MapControllers();
             });
         }
