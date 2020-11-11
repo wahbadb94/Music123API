@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using SongUploadAPI.Services;
+using SongUploadAPI.Hubs;
 
 namespace SongUploadAPI
 {
@@ -43,6 +44,17 @@ namespace SongUploadAPI
 
             services.AddScoped<IIdentityService, IdentityService>();
 
+            services.AddCors(options =>
+            {
+                options.AddDefaultPolicy(builder =>
+                {
+                    builder.AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials()
+                        .WithOrigins("http://localhost:3000", "https://localhost:3000");
+                });
+            });
+
             var jwtSettings = new JwtSettings();
             Configuration.Bind(key: nameof(jwtSettings), jwtSettings);
             services.AddSingleton(jwtSettings);
@@ -66,6 +78,8 @@ namespace SongUploadAPI
                     ValidateLifetime = true
                 };
             });
+
+            services.AddSignalR();
 
             services.AddSwaggerGen(x =>
             {
@@ -127,17 +141,20 @@ namespace SongUploadAPI
             {
                 options.SwaggerEndpoint(swaggerOptions.UIEndpoint, swaggerOptions.Description);
             });
+            
+            app.UseCors();
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
-
             app.UseRouting();
+
 
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
+                endpoints.MapHub<UpdateHub>("/updates");
                 endpoints.MapControllers();
             });
         }

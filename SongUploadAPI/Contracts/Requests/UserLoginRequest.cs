@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace SongUploadAPI.Contracts.Requests
 {
-    public class UserRegistrationRequest
+    public class UserLoginRequest
     {
+        [EmailAddress]
         [Required]
         public string Email { get; set; }
-
         [Required]
         public string Password { get; set; }
     }
