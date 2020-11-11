@@ -46,21 +46,21 @@ namespace SongUploadAPI.Controllers
                         JsonConvert.DeserializeObject<List<Event<Dictionary<string, string>>>>(jsonContent)
                             .First();
 
-                    //await _hubContext.Clients.Groups(GetJobIdFromEventSubject(gridEvent.Subject)).SendAsync(
-                    //    "gridupdate",
-                    //    gridEvent.Id,
-                    //    gridEvent.EventType,
-                    //    gridEvent.Subject,
-                    //    gridEvent.EventTime.ToLongTimeString(),
-                    //    jsonContent.ToString());
-
-                    await _hubContext.Clients.All.SendAsync(
+                    await _hubContext.Clients.Groups(GetJobIdFromEventSubject(gridEvent.Subject)).SendAsync(
                         "gridupdate",
                         gridEvent.Id,
                         gridEvent.EventType,
                         gridEvent.Subject,
                         gridEvent.EventTime.ToLongTimeString(),
                         jsonContent.ToString());
+
+                    //await _hubContext.Clients.All.SendAsync(
+                    //    "gridupdate",
+                    //    gridEvent.Id,
+                    //    gridEvent.EventType,
+                    //    gridEvent.Subject,
+                    //    gridEvent.EventTime.ToLongTimeString(),
+                    //    jsonContent.ToString());
 
                     // Retrieve the validation code and echo back.
                     var validationCode = gridEvent.Data["validationCode"];
@@ -79,22 +79,22 @@ namespace SongUploadAPI.Controllers
                         var details = JsonConvert.DeserializeObject<Event<dynamic>>(e.ToString());
 
 
-                        //await _hubContext.Clients.Groups(GetJobIdFromEventSubject(details.Subject)).SendAsync(
-                        //    "gridupdate",
-                        //    details.Id,
-                        //    details.EventType,
-                        //    details.Subject,
-                        //    details.EventTime.ToLongTimeString(),
-                        //    e.ToString());
-
-
-                        await _hubContext.Clients.All.SendAsync(
+                        await _hubContext.Clients.Groups(GetJobIdFromEventSubject(details.Subject)).SendAsync(
                             "gridupdate",
                             details.Id,
                             details.EventType,
                             details.Subject,
                             details.EventTime.ToLongTimeString(),
                             e.ToString());
+
+
+                        //await _hubContext.Clients.All.SendAsync(
+                        //    "gridupdate",
+                        //    details.Id,
+                        //    details.EventType,
+                        //    details.Subject,
+                        //    details.EventTime.ToLongTimeString(),
+                        //    e.ToString());
                     }
 
                     return Ok();
