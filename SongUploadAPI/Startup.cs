@@ -20,6 +20,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using SongUploadAPI.Services;
 using SongUploadAPI.Hubs;
+using Microsoft.Extensions.Options;
 
 namespace SongUploadAPI
 {
@@ -59,13 +60,16 @@ namespace SongUploadAPI
             Configuration.Bind(key: nameof(jwtSettings), jwtSettings);
             services.AddSingleton(jwtSettings);
 
+            services.Configure<UploadSettings>(
+                Configuration.GetSection("UploadSettings"));
+
             services.AddAuthentication(options => 
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
             })
-            .AddJwtBearer(options =>
+            .AddJwtBearer((options) =>
             {
                 options.SaveToken = true;
                 options.TokenValidationParameters = new TokenValidationParameters()

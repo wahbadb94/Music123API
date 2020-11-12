@@ -20,7 +20,13 @@ namespace SongUploadAPI
             Host.CreateDefaultBuilder(args)
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    webBuilder.UseStartup<Startup>();
+                    webBuilder.ConfigureKestrel((context, options) =>
+                    {
+                        // Increase request size to 635040000 bytes or 605.62MB
+                        // this equivalent to 2 hours of music sampled at 44.1kHz/16bit
+                        options.Limits.MaxRequestBodySize = 635040000;
+                    })
+                    .UseStartup<Startup>();
                 });
     }
 }

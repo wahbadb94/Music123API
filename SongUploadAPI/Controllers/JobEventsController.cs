@@ -16,6 +16,7 @@ namespace SongUploadAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public class JobEventsController : ControllerBase
     {
         private readonly IHubContext<JobUpdateHub> _hubContext;
