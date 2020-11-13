@@ -18,6 +18,7 @@ using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Azure.Storage.Blobs;
 using SongUploadAPI.Services;
 using SongUploadAPI.Hubs;
 using Microsoft.Extensions.Options;
@@ -60,8 +61,18 @@ namespace SongUploadAPI
             Configuration.Bind(key: nameof(jwtSettings), jwtSettings);
             services.AddSingleton(jwtSettings);
 
+            services.AddSingleton(x => new BlobServiceClient(
+                Configuration.GetConnectionString("BlobStorageConnectionString")));
+            services.AddSingleton<IBlobService, BlobService>();
+
             services.Configure<UploadSettings>(
                 Configuration.GetSection("UploadSettings"));
+
+            services.Configure<MediaServiceSettings>(
+                Configuration.GetSection("MediaServiceSettings"));
+
+            services.Configure<BlobStorageSettings>(
+                Configuration.GetSection("BlobStorageSettings"));
 
             services.AddAuthentication(options => 
             {

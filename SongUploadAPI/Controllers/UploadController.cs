@@ -1,21 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using SongUploadAPI.Filters;
 using SongUploadAPI.Hubs;
 using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.EntityFrameworkCore;
+using SongUploadAPI.Services;
+using Exception = System.Exception;
 
 namespace SongUploadAPI.Controllers
 {
@@ -23,24 +26,29 @@ namespace SongUploadAPI.Controllers
     [ApiController]
     public class UploadController : ControllerBase
     {
-        //FIXME:    currently we have 2 sources of truth for "allowed extensions"
-        //          should be injected where necessary from appsettings.json.
-        private readonly string[] _permittedExtensions = { ".wav" };    
+        private static readonly FormOptions DefaultFormOptions = new FormOptions();
+
+        private readonly string[] _permittedExtensions = {".wav"};
+        private readonly Dictionary<string, List<byte[]>> _fileSignatures = new Dictionary<string, List<byte[]>>
+        {
+            {".wav", new List<byte[]> { new byte[] { 0x52, 0x49, 0x46, 0x46 } } },
+        };
         private readonly long _fileSizeLimit;
         private readonly string _targetFilePath;
         private readonly IHubContext<JobUpdateHub> _hubContext;
+        private readonly MediaServiceSettings _mediaServiceSettings;
+        private readonly IBlobService _blobService;
 
-        // Get the default form options so that we can use them to set the default 
-        // limits for request body data.
-        private static readonly FormOptions _defaultFormOptions = new FormOptions();
-
-        public UploadController(
-            IHubContext<JobUpdateHub> hubContext,
-            IOptions<UploadSettings> uploadSettings)
+        public UploadController(IHubContext<JobUpdateHub> hubContext,
+            IOptions<UploadSettings> uploadSettings,
+            IOptions<MediaServiceSettings> mediaServiceSettings,
+            IBlobService blobService)
         {
             _fileSizeLimit = uploadSettings.Value.FileSizeLimit;
             _targetFilePath = uploadSettings.Value.StoredFilesPath;
             _hubContext = hubContext;
+            _mediaServiceSettings = mediaServiceSettings.Value;
+            _blobService = blobService;
         }
 
         [DisableFormValueModelBinding]
@@ -58,7 +66,7 @@ namespace SongUploadAPI.Controllers
 
             var boundary = MultipartRequestHelper.GetBoundary(
                 MediaTypeHeaderValue.Parse(Request.ContentType),
-                _defaultFormOptions.MultipartBoundaryLengthLimit);
+                DefaultFormOptions.MultipartBoundaryLengthLimit);
             var reader = new MultipartReader(boundary, HttpContext.Request.Body);
             var section = await reader.ReadNextSectionAsync();
 
@@ -70,10 +78,6 @@ namespace SongUploadAPI.Controllers
 
                 if (hasContentDispositionHeader)
                 {
-                    // This check assumes that there's a file
-                    // present without form data. If form data
-                    // is present, this method immediately fails
-                    // and returns the model error.
                     if (!MultipartRequestHelper
                         .HasFileContentDisposition(contentDisposition))
                     {
@@ -83,43 +87,31 @@ namespace SongUploadAPI.Controllers
 
                         return BadRequest(ModelState);
                     }
-                    else
+
+                    var fileBytes = await ProcessFile(
+                        section.Body,
+                        ModelState,
+                        contentDisposition.FileName.Value);
+
+                    if (ModelState.IsValid == false || fileBytes.Length == 0)
                     {
-                        // Don't trust the file name sent by the client. To display
-                        // the file name, HTML-encode the value.
-                        var trustedFileNameForDisplay = WebUtility.HtmlEncode(
-                                contentDisposition.FileName.Value);
-                        var trustedFileNameForFileStorage = Path.GetRandomFileName();
+                        return BadRequest(ModelState);
+                    }
 
-                        // **WARNING!**
-                        // In the following example, the file is saved without
-                        // scanning the file's contents. In most production
-                        // scenarios, an anti-virus/anti-malware scanner API
-                        // is used on the file before making the file available
-                        // for download or for use by other systems. 
-                        // For more information, see the topic that accompanies 
-                        // this sample.
+                    try
+                    {
+                        var uploadStream = new MemoryStream(fileBytes);
 
-                        var streamedFileContent = await FileHelpers.ProcessStreamedFile(
-                            section, contentDisposition, ModelState,
-                            _permittedExtensions, _fileSizeLimit);
-
-                        if (!ModelState.IsValid)
-                        {
-                            return BadRequest(ModelState);
-                        }
-
-                        using (var targetStream = System.IO.File.Create(
-                            Path.Combine(_targetFilePath, trustedFileNameForFileStorage)))
-                        {
-                            await targetStream.WriteAsync(streamedFileContent);
-
-                            //_logger.LogInformation(
-                            //    "Uploaded file '{TrustedFileNameForDisplay}' saved to " +
-                            //    "'{TargetFilePath}' as {TrustedFileNameForFileStorage}",
-                            //    trustedFileNameForDisplay, _targetFilePath,
-                            //    trustedFileNameForFileStorage);
-                        }
+                        var response = await _blobService.UploadContentBlobAsync(
+                            uploadStream,
+                            contentDisposition.FileName.Value,
+                            section.ContentType);
+                        return Ok(response);
+                    }
+                    catch (Exception e)
+                    {
+                        ModelState.AddModelError("Blob Upload", e.Message);
+                        return BadRequest(ModelState);
                     }
                 }
 
@@ -128,8 +120,63 @@ namespace SongUploadAPI.Controllers
                 section = await reader.ReadNextSectionAsync();
             }
 
-
             return Created(nameof(UploadController), null);
+        }
+
+        private async Task<byte[]> ProcessFile(Stream sectionBody, ModelStateDictionary modelState, string fileName)
+        {
+            if (sectionBody == null)
+            {
+                modelState.AddModelError("File", "The file stream does not exist");
+            }
+            else
+            {
+                await using var memoryStream = new MemoryStream();
+                await sectionBody.CopyToAsync(memoryStream);
+
+                if (memoryStream.Length == 0)
+                {
+                    modelState.AddModelError("File", "The file is empty");
+                }
+                else if (memoryStream.Length > _fileSizeLimit)
+                {
+                    var megabyteSizeLimit = _fileSizeLimit / 1048576;
+                    modelState.AddModelError("File",
+                        $"The file exceeds {megabyteSizeLimit:N1} MB.");
+                }
+                else if (IsValidExtension(memoryStream, fileName) == false)
+                {
+                    modelState.AddModelError("File", "This file type isn't permitted or the signature doesn't match the extenstion");
+                }
+                else
+                {
+                    return memoryStream.ToArray();
+                }
+            }
+
+            return new byte[0];
+        }
+
+        private bool IsValidExtension(Stream dataStream, string fileName)
+        {
+            // check file name
+            if (string.IsNullOrEmpty(fileName)) return false;
+
+            // check file extenstion
+            var extIndexOf = fileName.LastIndexOf('.');
+            var ext = fileName.Substring(extIndexOf).ToLowerInvariant();
+            if (string.IsNullOrEmpty(ext) || (_permittedExtensions.Contains(ext) == false)) return false;
+
+            //check file signature
+            dataStream.Position = 0;
+            var reader = new BinaryReader(dataStream);
+            var signatures = _fileSignatures[ext];
+            var headerBytes = reader.ReadBytes(signatures.Max(m => m.Length));
+            var result = signatures.Any(signature =>
+                headerBytes.Take(signature.Length).SequenceEqual(signature));
+            
+            return result;
+
         }
     }
 }
