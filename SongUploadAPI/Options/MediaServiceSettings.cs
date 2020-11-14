@@ -18,5 +18,6 @@ namespace SongUploadAPI.Options
         public Uri ArmAadAudience { get; set; }
         public Uri ArmEndpoint { get; set; }
         public string TransformName { get; set; }
+        public string DefaultStreamingEndpointName { get; set; }
     }
 }

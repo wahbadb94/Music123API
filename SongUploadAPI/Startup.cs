@@ -65,6 +65,8 @@ namespace SongUploadAPI
                 Configuration.GetConnectionString("BlobStorageConnectionString")));
             services.AddSingleton<IBlobService, BlobService>();
 
+            services.AddScoped<IMediaService, MediaService>();
+
             services.Configure<UploadSettings>(
                 Configuration.GetSection("UploadSettings"));
 

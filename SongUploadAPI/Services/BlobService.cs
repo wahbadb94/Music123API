@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Azure.Management.Media.Models;
 using Microsoft.Extensions.Options;
 using SongUploadAPI.Options;
 using BlobInfo = SongUploadAPI.Models.BlobInfo;
@@ -15,10 +16,14 @@ namespace SongUploadAPI.Services
     {
         private readonly BlobServiceClient _blobServiceClient;
         private readonly BlobStorageSettings _blobStorageSettings;
+        private readonly MediaServiceSettings _mediaServiceSettings;
 
-        public BlobService(BlobServiceClient blobServiceClient, IOptions<BlobStorageSettings> blobStorageSettings)
+        public BlobService(BlobServiceClient blobServiceClient,
+            IOptions<BlobStorageSettings> blobStorageSettings,
+            IOptions<MediaServiceSettings> mediaServiceSettings)
         {
             _blobServiceClient = blobServiceClient;
+            _mediaServiceSettings = mediaServiceSettings.Value;
             _blobStorageSettings = blobStorageSettings.Value;
         }
         
@@ -30,8 +35,6 @@ namespace SongUploadAPI.Services
             var blobDownloadInfo = await blobClient.DownloadAsync();
 
             return new BlobInfo(blobDownloadInfo.Value.Content, blobDownloadInfo.Value.ContentType);
-
-
         }
 
         public async Task<IEnumerable<string>> ListBlobNamesAsync()
@@ -47,11 +50,6 @@ namespace SongUploadAPI.Services
             }
 
             return items;
-        }
-
-        public async Task UploadFileBlobAsync(string filePath, string fileName)
-        {
-            throw new NotImplementedException();
         }
 
         public async Task<BlobContentInfo> UploadContentBlobAsync(Stream content, string fileName, string contentType)

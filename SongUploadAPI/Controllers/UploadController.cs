@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -13,10 +13,8 @@ using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.EntityFrameworkCore;
 using SongUploadAPI.Services;
 using Exception = System.Exception;
 
@@ -34,32 +32,27 @@ namespace SongUploadAPI.Controllers
             {".wav", new List<byte[]> { new byte[] { 0x52, 0x49, 0x46, 0x46 } } },
         };
         private readonly long _fileSizeLimit;
-        private readonly string _targetFilePath;
         private readonly IHubContext<JobUpdateHub> _hubContext;
-        private readonly MediaServiceSettings _mediaServiceSettings;
-        private readonly IBlobService _blobService;
+        private readonly IMediaService _mediaService;
 
         public UploadController(IHubContext<JobUpdateHub> hubContext,
             IOptions<UploadSettings> uploadSettings,
-            IOptions<MediaServiceSettings> mediaServiceSettings,
-            IBlobService blobService)
+            IMediaService mediaService)
         {
             _fileSizeLimit = uploadSettings.Value.FileSizeLimit;
-            _targetFilePath = uploadSettings.Value.StoredFilesPath;
             _hubContext = hubContext;
-            _mediaServiceSettings = mediaServiceSettings.Value;
-            _blobService = blobService;
+            _mediaService = mediaService;
         }
 
         [DisableFormValueModelBinding]
         [HttpPost]
         public async Task<IActionResult> Upload()
         {
+            // make sure content is multipart-formdata
             if (!MultipartRequestHelper.IsMultipartContentType(Request.ContentType))
             {
                 ModelState.AddModelError("File",
                     $"The request couldn't be processed (Error 1).");
-                // Log error
 
                 return BadRequest(ModelState);
             }
@@ -102,15 +95,16 @@ namespace SongUploadAPI.Controllers
                     {
                         var uploadStream = new MemoryStream(fileBytes);
 
-                        var response = await _blobService.UploadContentBlobAsync(
+                        await UploadSongToAms(
                             uploadStream,
                             contentDisposition.FileName.Value,
                             section.ContentType);
-                        return Ok(response);
+
+                        return Ok();
                     }
                     catch (Exception e)
                     {
-                        ModelState.AddModelError("Blob Upload", e.Message);
+                        ModelState.AddModelError("AMS Upload Failed", e.Message);
                         return BadRequest(ModelState);
                     }
                 }
@@ -172,11 +166,30 @@ namespace SongUploadAPI.Controllers
             var reader = new BinaryReader(dataStream);
             var signatures = _fileSignatures[ext];
             var headerBytes = reader.ReadBytes(signatures.Max(m => m.Length));
-            var result = signatures.Any(signature =>
-                headerBytes.Take(signature.Length).SequenceEqual(signature));
-            
+            var result = signatures.Any(signature => headerBytes.Take(signature.Length).SequenceEqual(signature));
             return result;
-
         }
+
+        //TODO: fileLength parameter is possibly redundant, can most likely be obtained from fileStream fairly easily
+        private async Task UploadSongToAms(Stream fileStream, string fileName, string contentType)
+        {
+            await _mediaService.Initialize();
+
+            // ensure unique asset name
+            var uniqueName = $"{Guid.NewGuid():N}";
+            var inputAssetName = $"{uniqueName}-input";
+            var outputAssetName = $"{uniqueName}-output";
+            var jobName = $"{uniqueName}-job";
+
+            //TODO: run async operations concurrently. will be a fun "Before and After" comparison
+            await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType);
+            await _mediaService.CreateOutputAssetAsync(outputAssetName);
+            await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
+
+            Console.WriteLine("Job Submitted");
+            
+        }
+
+
     }
 }
