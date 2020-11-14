@@ -63,8 +63,7 @@ namespace SongUploadAPI
 
             services.AddSingleton(x => new BlobServiceClient(
                 Configuration.GetConnectionString("BlobStorageConnectionString")));
-            services.AddSingleton<IBlobService, BlobService>();
-
+            
             services.AddScoped<IMediaService, MediaService>();
 
             services.Configure<UploadSettings>(
