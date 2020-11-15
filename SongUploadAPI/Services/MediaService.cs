@@ -61,19 +61,19 @@ namespace SongUploadAPI.Services
         }
 
         //TODO: fileSize is probably redundant because it can be obtained from fileStream
-        public async Task<Asset> CreateAndUploadInputAssetAsync(Stream fileStream, string assetName, string contentType)
+        public async Task<Asset> CreateAndUploadInputAssetAsync(Stream fileStream,
+            string assetName,
+            string contentType,
+            IProgress<long> uploadProgressHandler)
         {
-            var fileSize = fileStream.Length;
             // creating an 'asset', in the AMS context, means creating
             // a blob storage container.
-
-            Console.WriteLine("Creating input asset...");
+            Console.WriteLine("Creating input asset/container...");
             var asset = await _amsClient.Assets.CreateOrUpdateAsync(
                 _amsSettings.ResourceGroup, _amsSettings.AccountName,
                 assetName, new Asset());
 
-            // get a reference to the asset(container) we just created.
-
+            // get a reference to the asset(container) we just created....
             // WARNING: it will not work if you pass in the asset's name!!!
             // AMS's naming method for creating the asset containers is 'asset-<asset.assetid>'
             var assetContainerClient = _blobServiceClient.GetBlobContainerClient($"asset-{asset.AssetId}");
@@ -87,8 +87,7 @@ namespace SongUploadAPI.Services
                 {
                     ContentType = contentType
                 },
-                progressHandler: GetProgressHandler(fileSize,
-                    stopWatch));
+                progressHandler: uploadProgressHandler);
             stopWatch.Stop();
             Console.WriteLine("File Uploaded to bob storage!");
 

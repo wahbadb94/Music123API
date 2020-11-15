@@ -16,9 +16,9 @@ namespace SongUploadAPI.Controllers
     {
         private readonly IIdentityService _identityService;
 
-        public IdentityController(IIdentityService indentityService)
+        public IdentityController(IIdentityService identityService)
         {
-            _identityService = indentityService;
+            _identityService = identityService;
         }
 
         [HttpPost("register")]

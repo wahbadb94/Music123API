@@ -13,7 +13,10 @@ using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using SongUploadAPI.Services;
 using Exception = System.Exception;
@@ -34,16 +37,21 @@ namespace SongUploadAPI.Controllers
         private readonly long _fileSizeLimit;
         private readonly IHubContext<JobUpdateHub> _hubContext;
         private readonly IMediaService _mediaService;
+        private readonly UserManager<IdentityUser> _userManager;
 
         public UploadController(IHubContext<JobUpdateHub> hubContext,
             IOptions<UploadSettings> uploadSettings,
-            IMediaService mediaService)
+            IMediaService mediaService,
+            UserManager<IdentityUser> userManager)
         {
+            //TODO: change to KestrelSettings:MaxFileSize
             _fileSizeLimit = uploadSettings.Value.FileSizeLimit;
             _hubContext = hubContext;
             _mediaService = mediaService;
+            _userManager = userManager;
         }
 
+        [Authorize]
         [DisableFormValueModelBinding]
         [HttpPost]
         public async Task<IActionResult> Upload()
@@ -60,6 +68,7 @@ namespace SongUploadAPI.Controllers
             var boundary = MultipartRequestHelper.GetBoundary(
                 MediaTypeHeaderValue.Parse(Request.ContentType),
                 DefaultFormOptions.MultipartBoundaryLengthLimit);
+            var formAccumulator = new KeyValueAccumulator();
             var reader = new MultipartReader(boundary, HttpContext.Request.Body);
             var section = await reader.ReadNextSectionAsync();
 
@@ -71,50 +80,57 @@ namespace SongUploadAPI.Controllers
 
                 if (hasContentDispositionHeader)
                 {
-                    if (!MultipartRequestHelper
-                        .HasFileContentDisposition(contentDisposition))
+                    // if content is file
+                    if (MultipartRequestHelper.HasFileContentDisposition(contentDisposition))
                     {
-                        ModelState.AddModelError("File",
-                            $"The request couldn't be processed (Error 2).");
-                        // Log error
+                        var fileBytes = await ProcessFile(
+                            section.Body,
+                            ModelState,
+                            contentDisposition.FileName.Value);
 
-                        return BadRequest(ModelState);
+                        if (ModelState.IsValid == false || fileBytes.Length == 0)
+                        {
+                            return BadRequest(ModelState);
+                        }
+
+                        try
+                        {
+                            var uploadStream = new MemoryStream(fileBytes);
+
+                            await UploadSongToAms(
+                                uploadStream,
+                                section.ContentType);
+
+                            return Ok();
+                        }
+                        catch (Exception e)
+                        {
+                            ModelState.AddModelError("AMS Upload Failed", e.Message);
+                            return BadRequest(ModelState);
+                        }
                     }
-
-                    var fileBytes = await ProcessFile(
-                        section.Body,
-                        ModelState,
-                        contentDisposition.FileName.Value);
-
-                    if (ModelState.IsValid == false || fileBytes.Length == 0)
+                    else if (MultipartRequestHelper.HasFormDataContentDisposition(contentDisposition))
                     {
-                        return BadRequest(ModelState);
-                    }
 
-                    try
-                    {
-                        var uploadStream = new MemoryStream(fileBytes);
-
-                        await UploadSongToAms(
-                            uploadStream,
-                            contentDisposition.FileName.Value,
-                            section.ContentType);
-
-                        return Ok();
-                    }
-                    catch (Exception e)
-                    {
-                        ModelState.AddModelError("AMS Upload Failed", e.Message);
-                        return BadRequest(ModelState);
                     }
                 }
-
                 // Drain any remaining section body that hasn't been consumed and
                 // read the headers for the next section.
                 section = await reader.ReadNextSectionAsync();
             }
 
             return Created(nameof(UploadController), null);
+        }
+
+        [Authorize]
+        [HttpGet]
+        public async Task<string> WhoAmI()
+        {
+            var userName = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            //await _hubContext.Clients.User(userName).SendAsync("receiveMessage", $"Hi there {userName}!");
+            Console.WriteLine($"You Are {userName}");
+            await _hubContext.Clients.All.SendAsync("receiveMessage", "hi");
+            return userName;
         }
 
         private async Task<byte[]> ProcessFile(Stream sectionBody, ModelStateDictionary modelState, string fileName)
@@ -170,8 +186,7 @@ namespace SongUploadAPI.Controllers
             return result;
         }
 
-        //TODO: fileLength parameter is possibly redundant, can most likely be obtained from fileStream fairly easily
-        private async Task UploadSongToAms(Stream fileStream, string fileName, string contentType)
+        private async Task UploadSongToAms(Stream fileStream, string contentType)
         {
             await _mediaService.Initialize();
 
@@ -181,15 +196,14 @@ namespace SongUploadAPI.Controllers
             var outputAssetName = $"{uniqueName}-output";
             var jobName = $"{uniqueName}-job";
 
+            var uploadProgressHandler = new Progress<long>();
+
             //TODO: run async operations concurrently. will be a fun "Before and After" comparison
-            await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType);
+            await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType, uploadProgressHandler);
             await _mediaService.CreateOutputAssetAsync(outputAssetName);
             await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
 
             Console.WriteLine("Job Submitted");
-            
         }
-
-
     }
 }

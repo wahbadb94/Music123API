@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.SignalR;
 using SongUploadAPI.Services;
 using SongUploadAPI.Hubs;
 using Microsoft.Extensions.Options;
@@ -53,7 +54,7 @@ namespace SongUploadAPI
                     builder.AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials()
-                        .WithOrigins("http://localhost:3000", "https://localhost:3000");
+                        .WithOrigins("http://172.19.207.255:3000", "https://172.19.207.255:3000");
                 });
             });
 
@@ -93,9 +94,25 @@ namespace SongUploadAPI
                     RequireExpirationTime = false,
                     ValidateLifetime = true
                 };
+
+                // read access token from query string for requests related to our signalR hub
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+
+                        if (string.IsNullOrEmpty(accessToken) == false)
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
             services.AddSignalR();
+            services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
 
             services.AddSwaggerGen(x =>
             {

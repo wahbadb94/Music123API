@@ -12,7 +12,10 @@ namespace SongUploadAPI.Services
     {
         public Task Initialize();
 
-        public Task<Asset> CreateAndUploadInputAssetAsync(Stream fileStream, string assetName, string contentType);
+        public Task<Asset> CreateAndUploadInputAssetAsync(Stream fileStream,
+            string assetName,
+            string contentType,
+            IProgress<long> uploadProgressHandler);
         public Task<Asset> CreateOutputAssetAsync(string assetName);
         public Task<Job> SubmitJobAsync(string inputAssetName, string outputAssetName, string jobName);
         public Task<StreamingLocator> CreateStreamingLocatorAsync(string streamingLocatorName, string assetName);

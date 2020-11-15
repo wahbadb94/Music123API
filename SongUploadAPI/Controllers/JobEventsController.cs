@@ -48,7 +48,7 @@ namespace SongUploadAPI.Controllers
                             .First();
 
                     await _hubContext.Clients.Groups(GetJobIdFromEventSubject(gridEvent.Subject)).SendAsync(
-                        "gridupdate",
+                        "gridUpdate",
                         gridEvent.Id,
                         gridEvent.EventType,
                         gridEvent.Subject,
