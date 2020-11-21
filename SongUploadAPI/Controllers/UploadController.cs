@@ -23,6 +23,7 @@ using Exception = System.Exception;
 
 namespace SongUploadAPI.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
     public class UploadController : ControllerBase
@@ -37,25 +38,24 @@ namespace SongUploadAPI.Controllers
         private readonly long _fileSizeLimit;
         private readonly IHubContext<JobUpdateHub> _hubContext;
         private readonly IMediaService _mediaService;
-        private readonly UserManager<IdentityUser> _userManager;
+        private long _uploadFileSize;
+        private string _currentUser;
 
         public UploadController(IHubContext<JobUpdateHub> hubContext,
             IOptions<UploadSettings> uploadSettings,
-            IMediaService mediaService,
-            UserManager<IdentityUser> userManager)
+            IMediaService mediaService)
         {
             //TODO: change to KestrelSettings:MaxFileSize
             _fileSizeLimit = uploadSettings.Value.FileSizeLimit;
             _hubContext = hubContext;
             _mediaService = mediaService;
-            _userManager = userManager;
         }
 
-        [Authorize]
         [DisableFormValueModelBinding]
         [HttpPost]
         public async Task<IActionResult> Upload()
         {
+            _currentUser = User.FindFirstValue(ClaimTypes.NameIdentifier);
             // make sure content is multipart-formdata
             if (!MultipartRequestHelper.IsMultipartContentType(Request.ContentType))
             {
@@ -88,6 +88,9 @@ namespace SongUploadAPI.Controllers
                             ModelState,
                             contentDisposition.FileName.Value);
 
+                        _uploadFileSize = fileBytes.Length;
+                        Console.WriteLine(fileBytes.Length);
+                        
                         if (ModelState.IsValid == false || fileBytes.Length == 0)
                         {
                             return BadRequest(ModelState);
@@ -122,15 +125,13 @@ namespace SongUploadAPI.Controllers
             return Created(nameof(UploadController), null);
         }
 
-        [Authorize]
         [HttpGet]
-        public async Task<string> WhoAmI()
+        public async Task WhoAmI()
         {
-            var userName = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            _currentUser = User.FindFirstValue(ClaimTypes.NameIdentifier);
             //await _hubContext.Clients.User(userName).SendAsync("receiveMessage", $"Hi there {userName}!");
-            Console.WriteLine($"You Are {userName}");
-            await _hubContext.Clients.All.SendAsync("receiveMessage", "hi");
-            return userName;
+            Console.WriteLine($"You Are {_currentUser}");
+            await _hubContext.Clients.Group(_currentUser).SendAsync("receiveMessage", $"signalr {_currentUser}");
         }
 
         private async Task<byte[]> ProcessFile(Stream sectionBody, ModelStateDictionary modelState, string fileName)
@@ -197,13 +198,20 @@ namespace SongUploadAPI.Controllers
             var jobName = $"{uniqueName}-job";
 
             var uploadProgressHandler = new Progress<long>();
+            uploadProgressHandler.ProgressChanged += UploadProgressChanged;
 
             //TODO: run async operations concurrently. will be a fun "Before and After" comparison
+            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "uploading");
             await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType, uploadProgressHandler);
             await _mediaService.CreateOutputAssetAsync(outputAssetName);
             await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
+            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "encoding");
+        }
 
-            Console.WriteLine("Job Submitted");
+        private void UploadProgressChanged(object sender, long bytesUploaded)
+        {
+            var percentage = (double) bytesUploaded / _uploadFileSize;
+            _hubContext.Clients.Group(_currentUser).SendAsync("uploadPercentageChange", percentage);
         }
     }
 }

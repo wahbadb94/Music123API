@@ -54,7 +54,7 @@ namespace SongUploadAPI
                     builder.AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials()
-                        .WithOrigins("http://172.19.207.255:3000", "https://172.19.207.255:3000");
+                        .WithOrigins("http://localhost:3000", "https://localhost:3000");
                 });
             });
 

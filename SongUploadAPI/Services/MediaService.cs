@@ -60,7 +60,6 @@ namespace SongUploadAPI.Services
                 ActiveDirectoryServiceSettings.Azure);
         }
 
-        //TODO: fileSize is probably redundant because it can be obtained from fileStream
         public async Task<Asset> CreateAndUploadInputAssetAsync(Stream fileStream,
             string assetName,
             string contentType,
@@ -80,15 +79,12 @@ namespace SongUploadAPI.Services
             var blobClient = assetContainerClient.GetBlobClient(assetName);
 
             Console.WriteLine("Uploading file to blob storage...");
-            var stopWatch = new Stopwatch();
-            stopWatch.Start();
             await blobClient.UploadAsync(fileStream,
                 new BlobHttpHeaders()
                 {
                     ContentType = contentType
                 },
                 progressHandler: uploadProgressHandler);
-            stopWatch.Stop();
             Console.WriteLine("File Uploaded to bob storage!");
 
             return asset;
