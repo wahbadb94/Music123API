@@ -74,7 +74,7 @@ namespace SongUploadAPI.Services
 
             // get a reference to the asset(container) we just created....
             // WARNING: it will not work if you pass in the asset's name!!!
-            // AMS's naming method for creating the asset containers is 'asset-<asset.assetid>'
+            // AMS's naming method for creating the asset containers is 'asset-<assetid>'
             var assetContainerClient = _blobServiceClient.GetBlobContainerClient($"asset-{asset.AssetId}");
             var blobClient = assetContainerClient.GetBlobClient(assetName);
 
@@ -100,12 +100,17 @@ namespace SongUploadAPI.Services
 
         public async Task<Job> SubmitJobAsync(string inputAssetName, string outputAssetName, string jobName)
         {
-            var jobInput = new JobInputAsset(assetName: inputAssetName);
+            var jobInput = new JobInputAsset(inputAssetName);
 
             JobOutput[] jobOutputs =
             {
                 new JobOutputAsset(outputAssetName), 
             };
+            
+            // ensure transform exists, this really only needs to be done once,
+            // however I am going to keep this in case I ever need to setup up AMS
+            // from scratch again
+            _ = EnsureTransformExists();
 
             var job = await _amsClient.Jobs.CreateAsync(
                 _amsSettings.ResourceGroup,
@@ -119,6 +124,46 @@ namespace SongUploadAPI.Services
                 });
 
             return job;
+        }
+
+        private async Task EnsureTransformExists()
+        {
+            // get transform by name
+            var transform = await _amsClient.Transforms.GetAsync(
+                _amsSettings.ResourceGroup,
+                _amsSettings.AccountName,
+                _amsSettings.TransformName);
+
+            // if it doesn't exist, create it
+            if (transform == null)
+            {
+                var transformOutput = new TransformOutput[]
+                {
+                    new TransformOutput
+                    {
+                        Preset = new StandardEncoderPreset()
+                        {
+                            Codecs = new Codec[]
+                            {
+                                new AacAudio(channels: 2, samplingRate: 44100, bitrate: 128000,
+                                    profile: AacAudioProfile.AacLc)
+                            },
+                            Formats = new Format[]
+                            {
+                                new Mp4Format("{Basename}-{Bitrate}{Extension}")
+                            }
+                        },
+                        OnError = OnErrorType.StopProcessingJob,
+                        RelativePriority = Priority.Normal
+                    },
+                };
+
+                transform = await _amsClient.Transforms.CreateOrUpdateAsync(
+                    _amsSettings.ResourceGroup,
+                    _amsSettings.AccountName,
+                    _amsSettings.TransformName,
+                    transformOutput);
+            }
         }
 
         public async Task<StreamingLocator> CreateStreamingLocatorAsync(string streamingLocatorName, string assetName)
@@ -164,6 +209,7 @@ namespace SongUploadAPI.Services
                 Path = path.Paths[0]
             }).Select(uriBuilder => uriBuilder.ToString()).ToList();
         }
+        
 
         private static IProgress<long> GetProgressHandler(long fileSize, Stopwatch stopwatch)
         {

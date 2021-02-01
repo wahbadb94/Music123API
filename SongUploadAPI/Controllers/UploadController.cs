@@ -129,9 +129,7 @@ namespace SongUploadAPI.Controllers
         public async Task WhoAmI()
         {
             _currentUser = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            //await _hubContext.Clients.User(userName).SendAsync("receiveMessage", $"Hi there {userName}!");
-            Console.WriteLine($"You Are {_currentUser}");
-            await _hubContext.Clients.Group(_currentUser).SendAsync("receiveMessage", $"signalr {_currentUser}");
+            await _hubContext.Clients.Group(_currentUser).SendAsync("receiveMessage", $"Hi there {_currentUser}!");
         }
 
         private async Task<byte[]> ProcessFile(Stream sectionBody, ModelStateDictionary modelState, string fileName)

@@ -26,7 +26,7 @@ namespace SongUploadAPI.Controllers
             _hubContext = hubContext;
         }
 
-        private bool EventTypeSubcriptionValidation
+        private bool EventTypeSubscriptionValidation
             => HttpContext.Request.Headers["aeg-event-type"].FirstOrDefault() ==
             "SubscriptionValidation";
 
@@ -41,7 +41,7 @@ namespace SongUploadAPI.Controllers
             {
                 var jsonContent = await reader.ReadToEndAsync();
 
-                if (EventTypeSubcriptionValidation)
+                if (EventTypeSubscriptionValidation)
                 {
                     var gridEvent =
                         JsonConvert.DeserializeObject<List<Event<Dictionary<string, string>>>>(jsonContent)
