@@ -23,6 +23,9 @@ using Microsoft.AspNetCore.SignalR;
 using SongUploadAPI.Services;
 using SongUploadAPI.Hubs;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Azure;
+using Azure.Storage.Queues;
+using Azure.Core.Extensions;
 
 namespace SongUploadAPI
 {
@@ -54,7 +57,7 @@ namespace SongUploadAPI
                     builder.AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials()
-                        .WithOrigins("http://localhost:3000", "https://localhost:3000");
+                        .WithOrigins("http://localhost:3000", "https://localhost:3000", "https://songuploadfrontend.azurewebsites.net");
                 });
             });
 
@@ -64,6 +67,8 @@ namespace SongUploadAPI
 
             services.AddSingleton(x => new BlobServiceClient(
                 Configuration.GetConnectionString("BlobStorageConnectionString")));
+
+            services.AddSingleton<JobUpdateHub>();
             
             services.AddScoped<IMediaService, MediaService>();
 
@@ -148,6 +153,11 @@ namespace SongUploadAPI
                     }
                 });
             });
+            services.AddAzureClients(builder =>
+            {
+                builder.AddBlobServiceClient(Configuration["ConnectionStrings:BlobStorageConnectionString:blob"], preferMsi: true);
+                builder.AddQueueServiceClient(Configuration["ConnectionStrings:BlobStorageConnectionString:queue"], preferMsi: true);
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -189,6 +199,31 @@ namespace SongUploadAPI
                 endpoints.MapHub<JobUpdateHub>("/messages");
                 endpoints.MapControllers();
             });
+        }
+    }
+    internal static class StartupExtensions
+    {
+        public static IAzureClientBuilder<BlobServiceClient, BlobClientOptions> AddBlobServiceClient(this AzureClientFactoryBuilder builder, string serviceUriOrConnectionString, bool preferMsi)
+        {
+            if (preferMsi && Uri.TryCreate(serviceUriOrConnectionString, UriKind.Absolute, out Uri serviceUri))
+            {
+                return builder.AddBlobServiceClient(serviceUri);
+            }
+            else
+            {
+                return builder.AddBlobServiceClient(serviceUriOrConnectionString);
+            }
+        }
+        public static IAzureClientBuilder<QueueServiceClient, QueueClientOptions> AddQueueServiceClient(this AzureClientFactoryBuilder builder, string serviceUriOrConnectionString, bool preferMsi)
+        {
+            if (preferMsi && Uri.TryCreate(serviceUriOrConnectionString, UriKind.Absolute, out Uri serviceUri))
+            {
+                return builder.AddQueueServiceClient(serviceUri);
+            }
+            else
+            {
+                return builder.AddQueueServiceClient(serviceUriOrConnectionString);
+            }
         }
     }
 }

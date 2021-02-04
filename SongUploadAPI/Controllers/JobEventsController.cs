@@ -34,6 +34,21 @@ namespace SongUploadAPI.Controllers
             => HttpContext.Request.Headers["aeg-event-type"].FirstOrDefault() ==
                "Notification";
 
+        [HttpOptions]
+        public IActionResult Options()
+        {
+            using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
+            {
+                var webhookRequestOrigin = HttpContext.Request.Headers["WebHook-Request-Origin"].FirstOrDefault();
+                var webhookRequestCallback = HttpContext.Request.Headers["WebHook-Request-Callback"];
+                var webhookRequestRate = HttpContext.Request.Headers["WebHook-Request-Rate"];
+                HttpContext.Response.Headers.Add("WebHook-Allowed-Rate", "*");
+                HttpContext.Response.Headers.Add("WebHook-Allowed-Origin", webhookRequestOrigin);
+            }
+
+            return Ok();
+        }
+
         [HttpPost]
         public async Task<IActionResult> Post()
         {
@@ -47,22 +62,6 @@ namespace SongUploadAPI.Controllers
                         JsonConvert.DeserializeObject<List<Event<Dictionary<string, string>>>>(jsonContent)
                             .First();
 
-                    await _hubContext.Clients.Groups(GetJobIdFromEventSubject(gridEvent.Subject)).SendAsync(
-                        "gridUpdate",
-                        gridEvent.Id,
-                        gridEvent.EventType,
-                        gridEvent.Subject,
-                        gridEvent.EventTime.ToLongTimeString(),
-                        jsonContent.ToString());
-
-                    //await _hubContext.Clients.All.SendAsync(
-                    //    "gridupdate",
-                    //    gridEvent.Id,
-                    //    gridEvent.EventType,
-                    //    gridEvent.Subject,
-                    //    gridEvent.EventTime.ToLongTimeString(),
-                    //    jsonContent.ToString());
-
                     // Retrieve the validation code and echo back.
                     var validationCode = gridEvent.Data["validationCode"];
                     return new JsonResult(new
@@ -70,7 +69,8 @@ namespace SongUploadAPI.Controllers
                         validationResponse = validationCode
                     });
                 }
-                else if (EventTypeNotification)
+
+                if (EventTypeNotification)
                 {
                     var events = JArray.Parse(jsonContent);
                     foreach (var e in events)
@@ -79,39 +79,33 @@ namespace SongUploadAPI.Controllers
                         // an event grid notiification.                        
                         var details = JsonConvert.DeserializeObject<Event<dynamic>>(e.ToString());
 
-
-                        await _hubContext.Clients.Groups(GetJobIdFromEventSubject(details.Subject)).SendAsync(
-                            "gridupdate",
-                            details.Id,
-                            details.EventType,
-                            details.Subject,
-                            details.EventTime.ToLongTimeString(),
-                            e.ToString());
-
-
-                        //await _hubContext.Clients.All.SendAsync(
-                        //    "gridupdate",
-                        //    details.Id,
-                        //    details.EventType,
-                        //    details.Subject,
-                        //    details.EventTime.ToLongTimeString(),
-                        //    e.ToString());
+                        if (details.Subject != "")
+                        {
+                            await _hubContext.Clients.Groups(GetJobIdFromEventSubject(details.Subject)).SendAsync(
+                                "gridUpdate",
+                                details.Id,
+                                details.EventType,
+                                details.Subject,
+                                details.EventTime.ToLongTimeString(),
+                                e.ToString());
+                        }
                     }
 
                     return Ok();
                 }
-                else
-                {
-                    return BadRequest();
-                }
+
+                // otherwise request is missing an appropriate azure event grid header
+                return BadRequest("Missing appropriate \"aeg-event-type\" header." +
+                                  "Expected either SubscriptionValidation or Notification");
             }
         }
 
-        private string GetJobIdFromEventSubject(string subject)
+        private static string GetJobIdFromEventSubject(string subject)
         {
             // subject is of the form "transforms/VideoAnalyzerTransform/jobs/<job-id>"
             var uriComponents = subject.Split('/');
-            return uriComponents.Last();
+            var jobId = uriComponents.Last();
+            return jobId;
         }
     }
 }

@@ -68,7 +68,7 @@ namespace SongUploadAPI.Controllers
             var boundary = MultipartRequestHelper.GetBoundary(
                 MediaTypeHeaderValue.Parse(Request.ContentType),
                 DefaultFormOptions.MultipartBoundaryLengthLimit);
-            var formAccumulator = new KeyValueAccumulator();
+            var formAccumulator = new KeyValueAccumulator();        // used foy key-val pairs, will need later
             var reader = new MultipartReader(boundary, HttpContext.Request.Body);
             var section = await reader.ReadNextSectionAsync();
 
@@ -100,11 +100,11 @@ namespace SongUploadAPI.Controllers
                         {
                             var uploadStream = new MemoryStream(fileBytes);
 
-                            await UploadSongToAms(
+                            var jobId = await UploadSongToAms(
                                 uploadStream,
                                 section.ContentType);
 
-                            return Ok();
+                            return Ok(jobId);
                         }
                         catch (Exception e)
                         {
@@ -112,6 +112,8 @@ namespace SongUploadAPI.Controllers
                             return BadRequest(ModelState);
                         }
                     }
+
+                    // will need formAccumulator here
                     else if (MultipartRequestHelper.HasFormDataContentDisposition(contentDisposition))
                     {
 
@@ -185,7 +187,7 @@ namespace SongUploadAPI.Controllers
             return result;
         }
 
-        private async Task UploadSongToAms(Stream fileStream, string contentType)
+        private async Task<string> UploadSongToAms(Stream fileStream, string contentType)
         {
             await _mediaService.Initialize();
 
@@ -194,6 +196,7 @@ namespace SongUploadAPI.Controllers
             var inputAssetName = $"{uniqueName}-input";
             var outputAssetName = $"{uniqueName}-output";
             var jobName = $"{uniqueName}-job";
+            var locatorName = $"{uniqueName}-locator"
 
             var uploadProgressHandler = new Progress<long>();
             uploadProgressHandler.ProgressChanged += UploadProgressChanged;
@@ -202,8 +205,14 @@ namespace SongUploadAPI.Controllers
             await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "uploading");
             await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType, uploadProgressHandler);
             await _mediaService.CreateOutputAssetAsync(outputAssetName);
-            await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
+            await _hubContext.Clients.Group(_currentUser).SendAsync("listenToJob", jobName);
             await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "encoding");
+            await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
+            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "creating streaming locator");
+            await _mediaService.CreateStreamingLocatorAsync(locatorName, outputAssetName);
+            var urls = await _mediaService.GetStreamingUrlsAsync(locatorName);
+            await _hubContext.Groups
+            return urls[0];
         }
 
         private void UploadProgressChanged(object sender, long bytesUploaded)
