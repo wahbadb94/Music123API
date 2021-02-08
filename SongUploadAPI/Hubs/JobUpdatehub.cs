@@ -15,9 +15,10 @@ namespace SongUploadAPI.Hubs
     public class JobUpdateHub : Hub
     {
         public ConcurrentDictionary<string, string> UserConnectionIds { get; private set; }
-        public Task ListenToJob(string jobId)
+
+        public JobUpdateHub()
         {
-            return Groups.AddToGroupAsync(Context.ConnectionId, jobId);
+            UserConnectionIds = new ConcurrentDictionary<string, string>();
         }
 
         public override Task OnConnectedAsync()
@@ -25,6 +26,10 @@ namespace SongUploadAPI.Hubs
             var userName = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
             Groups.AddToGroupAsync(Context.ConnectionId, userName);
             Console.WriteLine($"Added: {userName}");
+
+            // add this connectionId to list of connectionIds associated with this user
+            UserConnectionIds.TryAdd(userName, Context.ConnectionId);
+
             return base.OnConnectedAsync();
         }
 
@@ -32,7 +37,7 @@ namespace SongUploadAPI.Hubs
         {
             var userName = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
             Console.WriteLine($"Disconnected: {userName}");
-            Groups.RemoveFromGroupAsync(Context.ConnectionId, userName);
+            UserConnectionIds.TryRemove(userName, out _);
             return base.OnDisconnectedAsync(exception);
         }
     }

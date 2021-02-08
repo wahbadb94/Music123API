@@ -123,6 +123,8 @@ namespace SongUploadAPI.Services
                     Outputs = jobOutputs
                 });
 
+            await WaitForJobToFinish(jobName);
+
             return job;
         }
 
@@ -202,12 +204,20 @@ namespace SongUploadAPI.Services
                 _amsSettings.AccountName,
                 locatorName);
 
-            return paths.StreamingPaths.Select(path => new UriBuilder()
+            var urls = new List<string>();
+
+            foreach (var path in paths.StreamingPaths)
             {
-                Scheme = "https",
-                Host = streamingEndpoint.HostName,
-                Path = path.Paths[0]
-            }).Select(uriBuilder => uriBuilder.ToString()).ToList();
+                var uriBuilder = new UriBuilder()
+                {
+                    Scheme = "https",
+                    Host = streamingEndpoint.HostName,
+                    Path = path.Paths[0]
+                };
+                urls.Add(uriBuilder.ToString());
+            }
+
+            return urls;
         }
         
 
@@ -215,6 +225,23 @@ namespace SongUploadAPI.Services
         {
             var builder = new UploadProgressHandlerBuilder(fileSize, stopwatch);
             return builder.Build();
+        }
+
+        private async Task WaitForJobToFinish(string jobName)
+        {
+            const int SleepIntervalMs = 1000;
+
+            Job job;
+            do
+            {
+                job = await _amsClient.Jobs.GetAsync(_amsSettings.ResourceGroup, _amsSettings.AccountName,
+                    _amsSettings.TransformName, jobName);
+
+                if (job.State != JobState.Finished && job.State != JobState.Error && job.State != JobState.Canceled)
+                {
+                    await Task.Delay(SleepIntervalMs);
+                }
+            } while (job.State != JobState.Finished && job.State != JobState.Canceled && job.State != JobState.Error);
         }
     }
 }

@@ -18,6 +18,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Azure.Management.Media.Models;
 using SongUploadAPI.Services;
 using Exception = System.Exception;
 
@@ -36,18 +37,18 @@ namespace SongUploadAPI.Controllers
             {".wav", new List<byte[]> { new byte[] { 0x52, 0x49, 0x46, 0x46 } } },
         };
         private readonly long _fileSizeLimit;
-        private readonly IHubContext<JobUpdateHub> _hubContext;
+        private readonly JobUpdateHub _jobUpdateHub;
         private readonly IMediaService _mediaService;
         private long _uploadFileSize;
         private string _currentUser;
 
-        public UploadController(IHubContext<JobUpdateHub> hubContext,
+        public UploadController(JobUpdateHub jobUpdateHub,
             IOptions<UploadSettings> uploadSettings,
             IMediaService mediaService)
         {
             //TODO: change to KestrelSettings:MaxFileSize
             _fileSizeLimit = uploadSettings.Value.FileSizeLimit;
-            _hubContext = hubContext;
+            _jobUpdateHub = jobUpdateHub;
             _mediaService = mediaService;
         }
 
@@ -71,7 +72,10 @@ namespace SongUploadAPI.Controllers
             var formAccumulator = new KeyValueAccumulator();        // used foy key-val pairs, will need later
             var reader = new MultipartReader(boundary, HttpContext.Request.Body);
             var section = await reader.ReadNextSectionAsync();
+            string streamingUrl;
 
+            // begin reading
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("jobStateChange", "submitting");
             while (section != null)
             {
                 var hasContentDispositionHeader =
@@ -100,11 +104,11 @@ namespace SongUploadAPI.Controllers
                         {
                             var uploadStream = new MemoryStream(fileBytes);
 
-                            var jobId = await UploadSongToAms(
+                            streamingUrl = await UploadSongToAms(
                                 uploadStream,
                                 section.ContentType);
 
-                            return Ok(jobId);
+                            return Ok(streamingUrl);
                         }
                         catch (Exception e)
                         {
@@ -131,7 +135,7 @@ namespace SongUploadAPI.Controllers
         public async Task WhoAmI()
         {
             _currentUser = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            await _hubContext.Clients.Group(_currentUser).SendAsync("receiveMessage", $"Hi there {_currentUser}!");
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("receiveMessage", $"Hi there {_currentUser}!");
         }
 
         private async Task<byte[]> ProcessFile(Stream sectionBody, ModelStateDictionary modelState, string fileName)
@@ -196,29 +200,37 @@ namespace SongUploadAPI.Controllers
             var inputAssetName = $"{uniqueName}-input";
             var outputAssetName = $"{uniqueName}-output";
             var jobName = $"{uniqueName}-job";
-            var locatorName = $"{uniqueName}-locator"
+            var locatorName = $"{uniqueName}-locator";
 
             var uploadProgressHandler = new Progress<long>();
             uploadProgressHandler.ProgressChanged += UploadProgressChanged;
 
             //TODO: run async operations concurrently. will be a fun "Before and After" comparison
-            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "uploading");
+            // begin asset upload
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("jobStateChange", "uploading");
             await _mediaService.CreateAndUploadInputAssetAsync(fileStream, inputAssetName, contentType, uploadProgressHandler);
-            await _mediaService.CreateOutputAssetAsync(outputAssetName);
-            await _hubContext.Clients.Group(_currentUser).SendAsync("listenToJob", jobName);
-            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "encoding");
+            var outputAsset = await _mediaService.CreateOutputAssetAsync(outputAssetName);
+
+            // begin encoding, register user to receive updates on encoding job
+            var userConnectionId = _jobUpdateHub.UserConnectionIds[_currentUser];
+            await _jobUpdateHub.Groups.AddToGroupAsync(userConnectionId, jobName);
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("jobStateChange", "encoding");
             await _mediaService.SubmitJobAsync(inputAssetName, outputAssetName, jobName);
-            await _hubContext.Clients.Group(_currentUser).SendAsync("jobStateChange", "creating streaming locator");
-            await _mediaService.CreateStreamingLocatorAsync(locatorName, outputAssetName);
-            var urls = await _mediaService.GetStreamingUrlsAsync(locatorName);
-            await _hubContext.Groups
+            await _jobUpdateHub.Groups.RemoveFromGroupAsync(userConnectionId, jobName);
+
+            // generate streaming locator, once job has finished
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("jobStateChange", "finalizing");
+            var locator = await _mediaService.CreateStreamingLocatorAsync(locatorName, outputAsset.Name);
+            var urls = await _mediaService.GetStreamingUrlsAsync(locator.Name);
+            await _jobUpdateHub.Clients.Group(_currentUser).SendAsync("jobStateChange", "finished");
+
             return urls[0];
         }
 
         private void UploadProgressChanged(object sender, long bytesUploaded)
         {
             var percentage = (double) bytesUploaded / _uploadFileSize;
-            _hubContext.Clients.Group(_currentUser).SendAsync("uploadPercentageChange", percentage);
+            _jobUpdateHub.Clients.Group(_currentUser).SendAsync("uploadPercentageChange", percentage);
         }
     }
 }
