@@ -36,8 +36,11 @@ namespace SongUploadAPI.Hubs
         public override Task OnDisconnectedAsync(Exception exception)
         {
             var userName = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Groups.RemoveFromGroupAsync(Context.ConnectionId, userName);
             Console.WriteLine($"Disconnected: {userName}");
+            
             UserConnectionIds.TryRemove(userName, out _);
+            
             return base.OnDisconnectedAsync(exception);
         }
     }

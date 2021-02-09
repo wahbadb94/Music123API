@@ -9,7 +9,7 @@ using SongUploadAPI.Data;
 
 namespace SongUploadAPI.Data.Migrations
 {
-    [DbContext(typeof(DataContext))]
+    [DbContext(typeof(ApplicationDbContext))]
     [Migration("20201110230835_Initial-Migration")]
     partial class InitialMigration
     {

@@ -10,15 +10,16 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using SongUploadAPI.Models;
 
 namespace SongUploadAPI.Services
 {
     public class IdentityService : IIdentityService
     {
-        private readonly UserManager<IdentityUser> _userManager;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly JwtSettings _jwtSettings;
 
-        public IdentityService(UserManager<IdentityUser> userManager, JwtSettings jwtSettings)
+        public IdentityService(UserManager<ApplicationUser> userManager, JwtSettings jwtSettings)
         {
             _userManager = userManager;
             _jwtSettings = jwtSettings;
@@ -57,15 +58,16 @@ namespace SongUploadAPI.Services
             {
                 return new AuthenticationResult
                 {
-                    ErrorMessages = new[] { "User with this email addresss already exists" },
+                    ErrorMessages = new[] { "User with this email address already exists" },
                     RequestSuccess = false
                 };
             }
 
-            var newUser = new IdentityUser
+            var newUser = new ApplicationUser()
             {
                 Email = email,
                 UserName = email,
+                Songs = new List<Song>()
             };
 
             var createdUser = await _userManager.CreateAsync(newUser, password);
@@ -86,7 +88,7 @@ namespace SongUploadAPI.Services
             };
         }
 
-        private string GenerateAndWriteTokenForUser(IdentityUser newUser)
+        private string GenerateAndWriteTokenForUser(ApplicationUser newUser)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtSettings.Secret);
