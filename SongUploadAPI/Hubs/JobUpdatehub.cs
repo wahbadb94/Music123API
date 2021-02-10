@@ -8,13 +8,16 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using SongUploadAPI.Extensions;
+using SongUploadAPI.Options;
 
 namespace SongUploadAPI.Hubs
 {
     [Authorize]
     public class JobUpdateHub : Hub
     {
-        public ConcurrentDictionary<string, string> UserConnectionIds { get; private set; }
+        public ConcurrentDictionary<string, string> UserConnectionIds { get; }
 
         public JobUpdateHub()
         {
@@ -23,23 +26,24 @@ namespace SongUploadAPI.Hubs
 
         public override Task OnConnectedAsync()
         {
-            var userName = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            Groups.AddToGroupAsync(Context.ConnectionId, userName);
-            Console.WriteLine($"Added: {userName}");
+            var userId = Context.GetUserId();
+            if (userId == string.Empty) return base.OnConnectedAsync();
 
-            // add this connectionId to list of connectionIds associated with this user
-            UserConnectionIds.TryAdd(userName, Context.ConnectionId);
+            // add userId to group their own unique group, and
+            // associate the connectionId with the userId in dictionary
+            Groups.AddToGroupAsync(Context.ConnectionId, userId);
+            UserConnectionIds.TryAdd(userId, Context.ConnectionId);
 
             return base.OnConnectedAsync();
         }
 
         public override Task OnDisconnectedAsync(Exception exception)
         {
-            var userName = Context.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            Groups.RemoveFromGroupAsync(Context.ConnectionId, userName);
-            Console.WriteLine($"Disconnected: {userName}");
-            
-            UserConnectionIds.TryRemove(userName, out _);
+            var userId = Context.GetUserId();
+            if (userId == string.Empty) return base.OnConnectedAsync();
+
+            Groups.RemoveFromGroupAsync(Context.ConnectionId, userId);
+            UserConnectionIds.TryRemove(userId, out _);
             
             return base.OnDisconnectedAsync(exception);
         }
