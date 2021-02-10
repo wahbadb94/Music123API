@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -14,18 +13,13 @@ using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.Azure.Management.Media.Models;
-using Microsoft.EntityFrameworkCore;
 using SongUploadAPI.Data;
-using SongUploadAPI.Data.Migrations;
 using SongUploadAPI.Extensions;
 using SongUploadAPI.Models;
 using SongUploadAPI.Services;
@@ -36,9 +30,10 @@ namespace SongUploadAPI.Controllers
     [Authorize]
     [Route("api/[controller]")]
     [ApiController]
-    public class UploadController : ControllerBase
+    public class SongController : ControllerBase
     {
         private static readonly FormOptions DefaultFormOptions = new FormOptions();
+        private const string DashStreamingSuffix = "(format=mpd-time-csf)";
 
         private readonly string[] _permittedExtensions = {".wav"};
         private readonly Dictionary<string, List<byte[]>> _fileSignatures = new Dictionary<string, List<byte[]>>
@@ -52,7 +47,7 @@ namespace SongUploadAPI.Controllers
         private string _currentUserEmail;
         private readonly ApplicationDbContext _dbContext;
 
-        public UploadController(JobUpdateHub jobUpdateHub,
+        public SongController(JobUpdateHub jobUpdateHub,
             IOptions<UploadSettings> uploadSettings,
             IMediaService mediaService,
             ApplicationDbContext dbContext)
@@ -91,7 +86,7 @@ namespace SongUploadAPI.Controllers
             var reader = new MultipartReader(boundary, HttpContext.Request.Body);
             var section = await reader.ReadNextSectionAsync();
             var streamingUrl = "";
-            var userId = Guid.NewGuid();
+            var songId = Guid.NewGuid();
 
             // begin reading
             await _jobUpdateHub.Clients.Group(_currentUserEmail).SendAsync("jobStateChange", "submitting");
@@ -125,7 +120,7 @@ namespace SongUploadAPI.Controllers
 
                             streamingUrl = await UploadSongToAms(
                                 uploadStream,
-                                section.ContentType, userId);
+                                section.ContentType, songId);
                         }
                         catch (Exception e)
                         {
@@ -189,7 +184,7 @@ namespace SongUploadAPI.Controllers
 
             var newSong = new Song()
             {
-                Id = userId,
+                Id = songId,
                 Name = formData.Name,
                 Artist = formData.Artist,
                 Bpm = formData.Bpm,
@@ -207,9 +202,17 @@ namespace SongUploadAPI.Controllers
             {
                 return BadRequest(e);
             }
-            
 
-            return Created(nameof(UploadController), null);
+            var baseUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host.ToUriComponent()}";
+            var locationUri = $"{baseUrl}{HttpContext.Request.Path}/{songId}";
+            
+            return Created(locationUri, newSong);
+        }
+
+        [HttpGet]
+        public IList<Song> GetAll()
+        {
+            return _dbContext.Songs.Where(song => song.UserId == HttpContext.GetUserId()).ToList();
         }
 
         public class SongFormData
@@ -219,14 +222,6 @@ namespace SongUploadAPI.Controllers
             public string Key { get; set; }
             public int Bpm { get; set; }
             public string StreamingUrl { get; set; }
-        }
-
-
-        [HttpGet]
-        public async Task WhoAmI()
-        {
-            _currentUserEmail = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            await _jobUpdateHub.Clients.Group(_currentUserEmail).SendAsync("receiveMessage", $"Hi there {_currentUserEmail}!");
         }
 
         private static Encoding GetEncoding(MultipartSection section)
@@ -321,9 +316,11 @@ namespace SongUploadAPI.Controllers
             await _jobUpdateHub.Clients.Group(_currentUserEmail).SendAsync("jobStateChange", "finalizing");
             var locator = await _mediaService.CreateStreamingLocatorAsync(locatorName, outputAsset.Name);
             var urls = await _mediaService.GetStreamingUrlsAsync(locator.Name);
+            var dashUrl = urls.Where(url => url.EndsWith(DashStreamingSuffix)).ToList()[0];
+
             await _jobUpdateHub.Clients.Group(_currentUserEmail).SendAsync("jobStateChange", "finished");
 
-            return urls[0];
+            return dashUrl;
         }
 
         private void UploadProgressChanged(object sender, long bytesUploaded)

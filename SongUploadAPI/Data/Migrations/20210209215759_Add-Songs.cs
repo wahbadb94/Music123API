@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace SongUploadAPI.Data.Migrations
 {
-    public partial class AddSongsSet : Migration
+    public partial class AddSongs : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
@@ -10,7 +11,7 @@ namespace SongUploadAPI.Data.Migrations
                 name: "Songs",
                 columns: table => new
                 {
-                    Id = table.Column<string>(nullable: false),
+                    Id = table.Column<Guid>(nullable: false),
                     Name = table.Column<string>(nullable: true),
                     Artist = table.Column<string>(nullable: true),
                     Key = table.Column<string>(nullable: true),

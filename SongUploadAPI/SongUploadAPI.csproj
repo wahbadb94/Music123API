@@ -8,6 +8,12 @@
   <ItemGroup>
     <Compile Remove="Data\Migrations\20210209000900_AddSongSet.cs" />
     <Compile Remove="Data\Migrations\20210209000900_AddSongSet.Designer.cs" />
+    <Compile Remove="Data\Migrations\20210209004404_AddSongsSet.cs" />
+    <Compile Remove="Data\Migrations\20210209004404_AddSongsSet.Designer.cs" />
+    <Compile Remove="Data\Migrations\20210209212802_AddSongs.cs" />
+    <Compile Remove="Data\Migrations\20210209212802_AddSongs.Designer.cs" />
+    <Compile Remove="Data\Migrations\20210209215315_AddSongs.cs" />
+    <Compile Remove="Data\Migrations\20210209215315_AddSongs.Designer.cs" />
   </ItemGroup>
 
   <ItemGroup>

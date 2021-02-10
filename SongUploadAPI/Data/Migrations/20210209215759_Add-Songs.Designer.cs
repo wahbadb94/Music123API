@@ -10,8 +10,8 @@ using SongUploadAPI.Data;
 namespace SongUploadAPI.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20210209004404_AddSongsSet")]
-    partial class AddSongsSet
+    [Migration("20210209215759_Add-Songs")]
+    partial class AddSongs
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
@@ -223,8 +223,9 @@ namespace SongUploadAPI.Data.Migrations
 
             modelBuilder.Entity("SongUploadAPI.Models.Song", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Artist")
                         .HasColumnType("nvarchar(max)");

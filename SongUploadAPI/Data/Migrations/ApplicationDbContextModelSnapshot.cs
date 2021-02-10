@@ -221,8 +221,9 @@ namespace SongUploadAPI.Data.Migrations
 
             modelBuilder.Entity("SongUploadAPI.Models.Song", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Artist")
                         .HasColumnType("nvarchar(max)");
