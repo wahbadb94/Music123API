@@ -46,7 +46,7 @@ namespace SongUploadAPI.Utilities
         
         public static bool HasFileContentDisposition(ContentDispositionHeaderValue contentDisposition)
         {
-            // Content-Disposition: form-data; name="myfile1"; filename="Misc 002.jpg"
+            // Content-Disposition: form-data; name="file"; filename="Misc 002.jpg"
             return contentDisposition != null
                 && contentDisposition.DispositionType.Equals("form-data")
                 && (!string.IsNullOrEmpty(contentDisposition.FileName.Value)

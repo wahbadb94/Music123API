@@ -5,11 +5,11 @@ using System.Threading.Tasks;
 
 namespace SongUploadAPI.Domain
 {
-    public class AuthenticationResult
+    public class FileProcessingResult
     {
-        public string Token { get; set; }
         public bool Succeeded { get; set; }
         public bool Failed => !Succeeded;
-        public IEnumerable<string> ErrorMessages { get; set; }
+        public string ErrorMessage { get; set; }
+        public byte[] FileBytes { get; set; }
     }
 }

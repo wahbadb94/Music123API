@@ -33,7 +33,7 @@ namespace SongUploadAPI.Services
             {
 
                 ErrorMessages = new[] { "User does not exist" },
-                RequestSuccess = false
+                Succeeded = false
             };
 
             var userHasValidPassword = await _userManager.CheckPasswordAsync(user, password);
@@ -45,7 +45,7 @@ namespace SongUploadAPI.Services
 
             return new AuthenticationResult
             {
-                RequestSuccess = true,
+                Succeeded = true,
                 Token = GenerateAndWriteTokenForUser(user)
             };
         }
@@ -59,7 +59,7 @@ namespace SongUploadAPI.Services
                 return new AuthenticationResult
                 {
                     ErrorMessages = new[] { "User with this email address already exists" },
-                    RequestSuccess = false
+                    Succeeded = false
                 };
             }
 
@@ -77,13 +77,13 @@ namespace SongUploadAPI.Services
                 return new AuthenticationResult
                 {
                     ErrorMessages = createdUser.Errors.Select(err => err.Description),
-                    RequestSuccess = false
+                    Succeeded = false
                 };
             }
 
             return new AuthenticationResult
             {
-                RequestSuccess = true,
+                Succeeded = true,
                 Token = GenerateAndWriteTokenForUser(newUser)
             };
         }
@@ -99,7 +99,7 @@ namespace SongUploadAPI.Services
                     new Claim(JwtRegisteredClaimNames.Sub, newUser.Email),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                     new Claim(JwtRegisteredClaimNames.Email, newUser.Email),
-                    new Claim("id", newUser.Id),
+                    new Claim(_jwtSettings.UserIdClaimName, newUser.Id),
                 }),
                 Expires = DateTime.UtcNow.AddHours(24),
                 SigningCredentials = new SigningCredentials(

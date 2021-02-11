@@ -42,7 +42,7 @@ namespace SongUploadAPI.Controllers
 
         private IActionResult GenerateAuthResponse(Domain.AuthenticationResult authResponse)
         {
-            if (authResponse.RequestSuccess == false)
+            if (authResponse.Succeeded == false)
             {
                 return BadRequest(new AuthFailedResponse
                 {

@@ -71,7 +71,10 @@ namespace SongUploadAPI
 
             services.AddSingleton<JobUpdateHub>();
             
+            services.AddScoped<IJobNotificationService, JobNotificationService>();
             services.AddScoped<IMediaService, MediaService>();
+            services.AddScoped<IAmsSongUploadService, AmsSongUploadService>();
+            services.AddScoped<ISongsService, SongsService>();
 
             services.Configure<UploadSettings>(
                 Configuration.GetSection("UploadSettings"));
@@ -118,7 +121,6 @@ namespace SongUploadAPI
             });
 
             services.AddSignalR();
-            services.AddSingleton<IUserIdProvider, NameUserIdProvider>();
 
             services.AddSwaggerGen(x =>
             {
