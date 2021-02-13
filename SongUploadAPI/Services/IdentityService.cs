@@ -25,43 +25,24 @@ namespace SongUploadAPI.Services
             _jwtSettings = jwtSettings;
         }
 
-        public async Task<AuthenticationResult> LoginAsync(string email, string password)
+        public async Task<Result<Token>> LoginAsync(string email, string password)
         {
             var user = await _userManager.FindByEmailAsync(email);
 
-            if (user == null) return new AuthenticationResult
-            {
-
-                ErrorMessages = new[] { "User does not exist" },
-                Succeeded = false
-            };
+            if (user == null) return new Error("User does not exist");
 
             var userHasValidPassword = await _userManager.CheckPasswordAsync(user, password);
 
-            if (userHasValidPassword == false) return new AuthenticationResult
-            {
-                ErrorMessages = new[] { "user and/or password is incorrect" }
-            };
+            if (userHasValidPassword == false) return new Error("user and/or password is incorrect");
 
-            return new AuthenticationResult
-            {
-                Succeeded = true,
-                Token = GenerateAndWriteTokenForUser(user)
-            };
+            return GenerateAndWriteTokenForUser(user);
         }
 
-        public async Task<AuthenticationResult> RegisterAsync(string email, string password)
+        public async Task<Result<Token>> RegisterAsync(string email, string password)
         {
             var existingUser = await _userManager.FindByEmailAsync(email);
 
-            if (existingUser != null)
-            {
-                return new AuthenticationResult
-                {
-                    ErrorMessages = new[] { "User with this email address already exists" },
-                    Succeeded = false
-                };
-            }
+            if (existingUser != null) return new Error("User with this email address already exists");
 
             var newUser = new ApplicationUser()
             {
@@ -73,22 +54,13 @@ namespace SongUploadAPI.Services
             var createdUser = await _userManager.CreateAsync(newUser, password);
 
             if (createdUser.Succeeded == false)
-            {
-                return new AuthenticationResult
-                {
-                    ErrorMessages = createdUser.Errors.Select(err => err.Description),
-                    Succeeded = false
-                };
-            }
+                return new Error(createdUser.Errors.SelectMany(err => err.Description)
+                    .ToString());
 
-            return new AuthenticationResult
-            {
-                Succeeded = true,
-                Token = GenerateAndWriteTokenForUser(newUser)
-            };
+            return GenerateAndWriteTokenForUser(newUser);
         }
 
-        private string GenerateAndWriteTokenForUser(ApplicationUser newUser)
+        private Token GenerateAndWriteTokenForUser(ApplicationUser newUser)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtSettings.Secret);
@@ -109,7 +81,7 @@ namespace SongUploadAPI.Services
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
 
-            return tokenHandler.WriteToken(token);
+            return new Token(tokenHandler.WriteToken(token));
         }
     }
 }

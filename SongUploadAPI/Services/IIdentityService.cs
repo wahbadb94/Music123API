@@ -8,7 +8,7 @@ namespace SongUploadAPI.Services
 {
     public interface IIdentityService
     {
-        Task<AuthenticationResult> RegisterAsync(string email, string password);
-        Task<AuthenticationResult> LoginAsync(string email, string password);
+        Task<Result<Token>> RegisterAsync(string email, string password);
+        Task<Result<Token>> LoginAsync(string email, string password);
     }
 }
