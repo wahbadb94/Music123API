@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using SongUploadAPI.Contracts.Requests;
 using SongUploadAPI.Extensions;
 using SongUploadAPI.Filters;
 using SongUploadAPI.Models;

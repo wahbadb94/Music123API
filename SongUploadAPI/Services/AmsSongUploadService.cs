@@ -19,7 +19,7 @@ namespace SongUploadAPI.Services
             _jobNotificationService = jobNotificationService;
         }
 
-        public async Task<AmsSongUploadResult> Upload(string userId, Stream fileStream, string contentType, EventHandler<long> uploadProgressChanged)
+        public async Task<Result<string>> Upload(string userId, Stream fileStream, string contentType, EventHandler<long> uploadProgressChanged)
         {
             await _mediaService.Initialize();
 
@@ -56,24 +56,12 @@ namespace SongUploadAPI.Services
 
                 await _jobNotificationService.NotifyUserJobStateChange(userId, JobState.Finished);
 
-                return new AmsSongUploadResult()
-                {
-                    Id = uniqueness,
-                    Succeeded = true,
-                    SteamingUrl = dashUrl,
-                    ErrorMessage = ""
-                };
+                return dashUrl;
 
             }
             catch (Exception e)
             {
-                return new AmsSongUploadResult()
-                {
-                    Id = uniqueness,
-                    Succeeded = false,
-                    SteamingUrl = "",
-                    ErrorMessage = e.Message,
-                };
+                return new Error(e.Message);
             }
         }
     }

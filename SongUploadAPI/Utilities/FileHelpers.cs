@@ -15,49 +15,27 @@ namespace SongUploadAPI.Utilities
             {".wav", new List<byte[]> { new byte[] { 0x52, 0x49, 0x46, 0x46 } } },
         };
 
-        public static async Task<FileProcessingResult> TryProcessFileAsync(Stream sectionBody, string fileName, long fileSizeLimit)
+        public static async Task<Result<byte[]>> TryProcessFileAsync(Stream sectionBody, string fileName, long fileSizeLimit)
         {
-            if (sectionBody == null)
-            {
-                return CreateBadFileProcessedResult("The file stream does not exist");
-            }
+            if (sectionBody == null) return new Error("The file stream does not exist");
 
             await using var memoryStream = new MemoryStream();
             await sectionBody.CopyToAsync(memoryStream);
 
-            if (memoryStream.Length == 0)
-            {
-                return CreateBadFileProcessedResult("The file is empty");
-            }
+            if (memoryStream.Length == 0) return new Error("The file is empty");
 
             if (memoryStream.Length > fileSizeLimit)
             {
                 var megabyteSizeLimit = fileSizeLimit / 1048576;
-                return CreateBadFileProcessedResult($"The file exceeds {megabyteSizeLimit:N1} MB.");
+                return new Error($"The file exceeds {megabyteSizeLimit:N1} MB.");
             }
 
             if (IsValidExtension(memoryStream, fileName) == false)
             {
-                return CreateBadFileProcessedResult(
-                    "This file type isn't permitted or the signature doesn't match the extension.");
+                return new Error("This file type isn't permitted or the signature doesn't match the extension.");
             }
 
-            return new FileProcessingResult()
-            {
-                Succeeded = true,
-                FileBytes = memoryStream.ToArray(),
-                ErrorMessage = "",
-            };
-        }
-
-        private static FileProcessingResult CreateBadFileProcessedResult(string errorMessage)
-        {
-            return new FileProcessingResult()
-            {
-                ErrorMessage = errorMessage,
-                Succeeded = false,
-                FileBytes = new byte[0]
-            };
+            return memoryStream.ToArray();
         }
 
         private static bool IsValidExtension(Stream dataStream, string fileName)

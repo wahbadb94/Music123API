@@ -17,5 +17,11 @@ namespace SongUploadAPI.Domain
         // create implicit conversions from T and Error to Result<T>
         public static implicit operator Result<T>(T _) => new Result<T>(_);
         public static implicit operator Result<T>(Error _) => new Result<T>(_);
+
+        public bool IsOk => IsT0;
+        public bool IsError => IsT1;
+
+        public T AsOk => AsT0;
+        public Error AsError => AsT1;
     }
 }

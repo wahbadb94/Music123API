@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -11,18 +10,13 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
+using SongUploadAPI.Contracts.Requests;
 using SongUploadAPI.Data;
 using SongUploadAPI.Domain;
 using SongUploadAPI.Extensions;
 using SongUploadAPI.Models;
 using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
-
-using TryBindModelAsyncDelegate =
-    System.Func<
-        SongUploadAPI.Models.SongFormData,
-        Microsoft.AspNetCore.Mvc.ModelBinding.FormValueProvider,
-        System.Threading.Tasks.Task<bool>>;
 
 namespace SongUploadAPI.Services
 {
@@ -46,15 +40,14 @@ namespace SongUploadAPI.Services
         }
 
         public async Task<Result<Song>> CreateSongAsync(string userId, HttpRequest request,
-            TryBindModelAsyncDelegate tryBindModelAsync)
+            ISongsService.TryBindModelAsync tryBindModelAsync)
         {
-            // TODO: (de-clutter) move manual reading of request body to it's own method
+            // TODO: (de-clutter) move manual reading of request body to it's own method that returns Result<Tuple<formData, streamingUrl>>
 
             if (!request.IsMultiPartContentType()) return new Error("request is not of type \"multipart/form-data\"");
 
             // used for creating the resulting entity
             var streamingUrl = "";
-            var songId = Guid.Empty;
 
             // manually read multipart/form-data one section at a time
             // each section is delimited by the 'boundary'
@@ -66,7 +59,6 @@ namespace SongUploadAPI.Services
 
             // begin reading
             await _jobNotificationService.NotifyUserJobStateChange(userId, JobState.Submitting);
-
             while (section != null)
             {
                 var hasContentDispositionHeader =
@@ -75,15 +67,15 @@ namespace SongUploadAPI.Services
 
                 if (contentDisposition.HasFileContent())
                 {
-                    // validate and process the upload stream
+                    // validate and process the stream from the form
                     var fileProcessedResult = await FileHelpers.TryProcessFileAsync(section.Body,
                         contentDisposition.FileName.Value, _uploadFileSizeLimit);
 
-                    if (fileProcessedResult.Failed) return new Error(fileProcessedResult.ErrorMessage);
-
-                    // upload file to Azure Media Services
-                    var fileSize = fileProcessedResult.FileBytes.Length;
-                    var uploadStream = new MemoryStream(fileProcessedResult.FileBytes);
+                    if (fileProcessedResult.IsError) return fileProcessedResult.AsError;
+                    
+                    var fileBytes = fileProcessedResult.AsOk;
+                    var fileSize = fileBytes.Length;
+                    var uploadStream = new MemoryStream(fileBytes);
 
                     // event handler to send upload progress to client
                     void UploadProgressChanged(object sender, long bytesUploaded)
@@ -92,20 +84,19 @@ namespace SongUploadAPI.Services
                         _jobNotificationService.NotifyUserUploadPercentageChange(userId, percentage);
                     }
 
+                    // either returns the streamingURL after successfully uploading, or Error
                     var uploadResult = await _uploadService.Upload(userId, uploadStream, section.ContentType,
                         UploadProgressChanged);
 
-                    if (uploadResult.Failed) return new Error(uploadResult.ErrorMessage);
+                    if (uploadResult.IsError) return uploadResult.AsError;
 
-
-                    songId = uploadResult.Id;
-                    streamingUrl = uploadResult.SteamingUrl;
+                    streamingUrl = uploadResult.AsOk;
                 }
 
                 if (contentDisposition.HasFormDataContent())
                 {
                     var key = HeaderUtilities.RemoveQuotes(contentDisposition.Name).Value;
-                    var encoding = GetEncoding(section);
+                    var encoding = RequestHelpers.GetEncoding(section);
 
                     if (encoding == null) return new Error("Could not get encoding type");
 
@@ -129,25 +120,16 @@ namespace SongUploadAPI.Services
             }
 
             // bind form-data to model
-            var formData = new SongFormData();
+            var songFormData = new SongFormData();
             var formValueProvider = new FormValueProvider(
                 BindingSource.Form,
                 new FormCollection(formAccumulator.GetResults()),
                 CultureInfo.CurrentCulture);
-            var bindingSuccessful = await tryBindModelAsync(formData, formValueProvider);
+            var bindingSuccessful = await tryBindModelAsync(songFormData, formValueProvider);
 
-            if (bindingSuccessful == false) return new Error( $"could not map form-data to type {formData.GetType().Name}");
+            if (bindingSuccessful == false) return new Error( $"could not map form-data to type {songFormData.GetType().Name}");
 
-            var newSong = new Song()
-            {
-                Id = songId,
-                Name = formData.Name,
-                Artist = formData.Artist,
-                Bpm = formData.Bpm,
-                Key = formData.Key,
-                StreamingUrl = streamingUrl,
-                UserId = userId
-            };
+            var newSong = SongMapper.GetSongFromSongFormData(userId, songFormData, streamingUrl);
 
             try
             {
@@ -186,15 +168,6 @@ namespace SongUploadAPI.Services
         public Task<Song> DeleteSongAsync(string userId, string songId)
         {
             throw new NotImplementedException();
-        }
-
-        private static Encoding GetEncoding(MultipartSection section)
-        {
-            var hasMediaTypeHeader = MediaTypeHeaderValue.TryParse(section.ContentType, out var mediaType);
-
-            if (!hasMediaTypeHeader || Encoding.UTF7.Equals(mediaType.Encoding)) return Encoding.UTF8;
-
-            return mediaType.Encoding;
         }
     }
 }

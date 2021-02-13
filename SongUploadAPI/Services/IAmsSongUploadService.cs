@@ -10,6 +10,6 @@ namespace SongUploadAPI.Services
 {
     public interface IAmsSongUploadService
     {
-        public Task<AmsSongUploadResult> Upload(string userId, Stream fileStream, string contentType, EventHandler<long> uploadProgressChanged);
+        public Task<Result<string>> Upload(string userId, Stream fileStream, string contentType, EventHandler<long> uploadProgressChanged);
     }
 }

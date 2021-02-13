@@ -219,17 +219,10 @@ namespace SongUploadAPI.Services
 
             return urls;
         }
-        
-
-        private static IProgress<long> GetProgressHandler(long fileSize, Stopwatch stopwatch)
-        {
-            var builder = new UploadProgressHandlerBuilder(fileSize, stopwatch);
-            return builder.Build();
-        }
 
         private async Task WaitForJobToFinish(string jobName)
         {
-            const int SleepIntervalMs = 1000;
+            const int sleepIntervalMs = 1000;
 
             Job job;
             do
@@ -239,7 +232,7 @@ namespace SongUploadAPI.Services
 
                 if (job.State != JobState.Finished && job.State != JobState.Error && job.State != JobState.Canceled)
                 {
-                    await Task.Delay(SleepIntervalMs);
+                    await Task.Delay(sleepIntervalMs);
                 }
             } while (job.State != JobState.Finished && job.State != JobState.Canceled && job.State != JobState.Error);
         }
