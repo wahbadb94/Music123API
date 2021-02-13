@@ -14,7 +14,6 @@ using Microsoft.Net.Http.Headers;
 using SongUploadAPI.Data;
 using SongUploadAPI.Domain;
 using SongUploadAPI.Extensions;
-using SongUploadAPI.Hubs;
 using SongUploadAPI.Models;
 using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
@@ -46,21 +45,16 @@ namespace SongUploadAPI.Services
             _uploadFileSizeLimit = uploadSettings.Value.FileSizeLimit;
         }
 
-        public async Task<SongCreatedResult> CreateSongAsync(string userId, HttpRequest request,
+        public async Task<Result<Song>> CreateSongAsync(string userId, HttpRequest request,
             TryBindModelAsyncDelegate tryBindModelAsync)
         {
-            if (request.IsMultiPartContentType() == false)
-            {
-                return new SongCreatedResult()
-                {
-                    ErrorMessage = "request is not of type \"multipart/form-data\"",
-                    Succeeded = false
-                };
-            }
+            // TODO: (de-clutter) move manual reading of request body to it's own method
+
+            if (!request.IsMultiPartContentType()) return new Error("request is not of type \"multipart/form-data\"");
 
             // used for creating the resulting entity
             var streamingUrl = "";
-            Guid songId = Guid.Empty;
+            var songId = Guid.Empty;
 
             // manually read multipart/form-data one section at a time
             // each section is delimited by the 'boundary'
@@ -85,14 +79,7 @@ namespace SongUploadAPI.Services
                     var fileProcessedResult = await FileHelpers.TryProcessFileAsync(section.Body,
                         contentDisposition.FileName.Value, _uploadFileSizeLimit);
 
-                    if (fileProcessedResult.Failed)
-                    {
-                        return new SongCreatedResult()
-                        {
-                            Succeeded = false,
-                            ErrorMessage = fileProcessedResult.ErrorMessage
-                        };
-                    }
+                    if (fileProcessedResult.Failed) return new Error(fileProcessedResult.ErrorMessage);
 
                     // upload file to Azure Media Services
                     var fileSize = fileProcessedResult.FileBytes.Length;
@@ -108,14 +95,8 @@ namespace SongUploadAPI.Services
                     var uploadResult = await _uploadService.Upload(userId, uploadStream, section.ContentType,
                         UploadProgressChanged);
 
-                    if (uploadResult.Failed)
-                    {
-                        return new SongCreatedResult()
-                        {
-                            ErrorMessage = uploadResult.ErrorMessage,
-                            Succeeded = false
-                        };
-                    }
+                    if (uploadResult.Failed) return new Error(uploadResult.ErrorMessage);
+
 
                     songId = uploadResult.Id;
                     streamingUrl = uploadResult.SteamingUrl;
@@ -126,14 +107,7 @@ namespace SongUploadAPI.Services
                     var key = HeaderUtilities.RemoveQuotes(contentDisposition.Name).Value;
                     var encoding = GetEncoding(section);
 
-                    if (encoding == null)
-                    {
-                        return new SongCreatedResult()
-                        {
-                            ErrorMessage = "Could not get encoding type",
-                            Succeeded = false
-                        };
-                    }
+                    if (encoding == null) return new Error("Could not get encoding type");
 
                     using var streamReader = new StreamReader(section.Body, encoding, true, 1024, true);
 
@@ -145,11 +119,7 @@ namespace SongUploadAPI.Services
 
                     if (formAccumulator.ValueCount > _defaultFormOptions.ValueCountLimit)
                     {
-                        return new SongCreatedResult()
-                        {
-                            ErrorMessage = $"value count for form field {key}, exceeded maximum amount of values",
-                            Succeeded = false,
-                        };
+                        return new Error($"value count for form field {key}, exceeded maximum amount of values");
                     }
                 }
 
@@ -166,14 +136,7 @@ namespace SongUploadAPI.Services
                 CultureInfo.CurrentCulture);
             var bindingSuccessful = await tryBindModelAsync(formData, formValueProvider);
 
-            if (bindingSuccessful == false)
-            {
-                return new SongCreatedResult()
-                {
-                    ErrorMessage = $"could not map form-data to type {formData.GetType().Name}",
-                    Succeeded = false
-                };
-            }
+            if (bindingSuccessful == false) return new Error( $"could not map form-data to type {formData.GetType().Name}");
 
             var newSong = new Song()
             {
@@ -186,19 +149,28 @@ namespace SongUploadAPI.Services
                 UserId = userId
             };
 
-            await _dbContext.Songs.AddAsync(newSong);
-            await _dbContext.SaveChangesAsync();
-
-            return new SongCreatedResult()
+            try
             {
-                Song = newSong,
-                Succeeded = true,
-            };
+                await _dbContext.Songs.AddAsync(newSong);
+                await _dbContext.SaveChangesAsync();
+                return newSong;
+            }
+            catch (Exception e)
+            {
+                return new Error(e.Message);
+            }
         }
 
-        public IList<Song> GetAllSongs(string userId)
+        public Result<IList<Song>> GetAllSongs(string userId)
         {
-            return _dbContext.Songs.Where(song => song.UserId == userId).ToList();
+            try
+            {
+               return _dbContext.Songs.Where(song => song.UserId == userId).ToList();
+            }
+            catch (Exception e)
+            {
+                return new Error(e.Message);
+            }
         }
 
         public Task<Song> GetSongAsync(string userId, string songId)
