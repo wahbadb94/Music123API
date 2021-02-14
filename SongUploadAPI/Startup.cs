@@ -152,7 +152,7 @@ namespace SongUploadAPI
                                 Id = "Bearer",
                             }
                         },
-                        new string[] {}
+                        Array.Empty<string>()
                     }
                 });
             });
