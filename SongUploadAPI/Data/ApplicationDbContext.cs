@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using SongUploadAPI.Controllers;
-using SongUploadAPI.Models;
+using SongUploadAPI.DTOs;
 
 namespace SongUploadAPI.Data
 {
@@ -15,6 +15,6 @@ namespace SongUploadAPI.Data
         {
         }
         // DbSet<ApplicationUser> inherited
-        public DbSet<Song> Songs { get; set; }
+        public DbSet<SongDto> Songs { get; set; }
     }
 }

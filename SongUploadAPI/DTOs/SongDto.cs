@@ -1,12 +1,10 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Security.Policy;
-using Microsoft.AspNetCore.Identity;
 
-namespace SongUploadAPI.Models
+namespace SongUploadAPI.DTOs
 {
-    public class Song
+    public class SongDto
     {
         [Key]
         public Guid Id { get; set; }

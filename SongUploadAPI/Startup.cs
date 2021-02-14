@@ -26,7 +26,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Azure;
 using Azure.Storage.Queues;
 using Azure.Core.Extensions;
-using SongUploadAPI.Models;
+using SongUploadAPI.DTOs;
 
 namespace SongUploadAPI
 {

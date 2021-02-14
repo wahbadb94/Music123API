@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using SongUploadAPI.Models;
+using SongUploadAPI.DTOs;
 
 namespace SongUploadAPI.Services
 {
@@ -48,7 +48,7 @@ namespace SongUploadAPI.Services
             {
                 Email = email,
                 UserName = email,
-                Songs = new List<Song>()
+                Songs = new List<SongDto>()
             };
 
             var createdUser = await _userManager.CreateAsync(newUser, password);

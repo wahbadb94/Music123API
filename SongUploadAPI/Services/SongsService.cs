@@ -14,8 +14,9 @@ using Microsoft.Net.Http.Headers;
 using SongUploadAPI.Contracts.Requests;
 using SongUploadAPI.Data;
 using SongUploadAPI.Domain;
+using SongUploadAPI.DTOs;
 using SongUploadAPI.Extensions;
-using SongUploadAPI.Models;
+using SongUploadAPI.Mappers;
 using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
 
@@ -40,7 +41,7 @@ namespace SongUploadAPI.Services
             _uploadFileSizeLimit = uploadSettings.Value.FileSizeLimit;
         }
 
-        public async Task<Result<Song>> CreateSongAsync(string userId, HttpRequest request,
+        public async Task<Result<SongDto>> CreateSongAsync(string userId, HttpRequest request,
             ISongsService.TryBindModelAsync tryBindModelAsync)
         {
             // TODO: (de-clutter) move manual reading of request body to it's own method that returns Result<Tuple<formData, streamingUrl>>
@@ -130,7 +131,7 @@ namespace SongUploadAPI.Services
 
             if (bindingSuccessful == false) return new Error( $"could not map form-data to type {songFormData.GetType().Name}");
 
-            var newSong = SongMapper.CreateNewSongFromSongFormData(userId, songFormData, streamingUrl);
+            var newSong = SongMapper.SongFormDataToDto(userId, songFormData, streamingUrl);
 
             try
             {
@@ -144,11 +145,11 @@ namespace SongUploadAPI.Services
             }
         }
 
-        public async Task<Result<IList<Song>>> GetAllSongsAsync(string userId) => await _dbContext.Songs
+        public async Task<Result<IList<SongDto>>> GetAllSongsAsync(string userId) => await _dbContext.Songs
             .Where(song => song.UserId == userId)
             .ToListAsync();
 
-        public async Task<Result<Song>> GetSongAsync(string userId, string songId)
+        public async Task<Result<SongDto>> GetSongAsync(string userId, string songId)
         {
             var result = await _dbContext.Songs
                 .Where(song => song.UserId == userId)
@@ -159,12 +160,12 @@ namespace SongUploadAPI.Services
             return result;
         }
 
-        public async Task<Result<Song>> UpdateSongAsync(string userId, string songId, SongFormData updatedSongData) =>
+        public async Task<Result<SongDto>> UpdateSongAsync(string userId, string songId, SongFormData updatedSongData) =>
             await (await GetSongAsync(userId, songId))
                 .Match(
                     async foundSong =>
                     {
-                        SongMapper.UpdateSongFromSongFormData(foundSong, updatedSongData);
+                        SongMapper.UpdateSongDtoFromFormData(foundSong, updatedSongData);
                         try
                         {
                             _dbContext.Songs.Update(foundSong);
@@ -176,9 +177,9 @@ namespace SongUploadAPI.Services
                             return new Error(e.Message);
                         }
                     },
-                    error => Task.FromResult<Result<Song>>(error));
+                    error => Task.FromResult<Result<SongDto>>(error));
 
-        public async Task<Result<Song>> DeleteSongAsync(string userId, string songId) =>
+        public async Task<Result<SongDto>> DeleteSongAsync(string userId, string songId) =>
             await (await GetSongAsync(userId, songId))
                 .Match(
                     async foundSong =>
@@ -194,6 +195,6 @@ namespace SongUploadAPI.Services
                             return new Error(e.Message);
                         }
                     },
-                    err => Task.FromResult<Result<Song>>(err));
+                    err => Task.FromResult<Result<SongDto>>(err));
     }
 }

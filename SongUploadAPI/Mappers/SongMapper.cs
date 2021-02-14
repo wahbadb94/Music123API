@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using SongUploadAPI.Contracts.Requests;
-using SongUploadAPI.Models;
+using SongUploadAPI.DTOs;
 
-namespace SongUploadAPI.Utilities
+namespace SongUploadAPI.Mappers
 {
     public static class SongMapper
     {
-        public static Song CreateNewSongFromSongFormData(string userId, SongFormData songFormData, string streamingUrl)
+        public static SongDto SongFormDataToDto(string userId, SongFormData songFormData, string streamingUrl)
         {
-            return new Song()
+            return new SongDto()
             {
                 Id = Guid.NewGuid(),
                 Name = songFormData.Name,
@@ -23,7 +20,7 @@ namespace SongUploadAPI.Utilities
             };
         }
 
-        public static void UpdateSongFromSongFormData(Song oldData, SongFormData newData)
+        public static void UpdateSongDtoFromFormData(SongDto oldData, SongFormData newData)
         {
             oldData.Artist = newData.Artist;
             oldData.Name = newData.Name;

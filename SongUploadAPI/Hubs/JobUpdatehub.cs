@@ -1,16 +1,9 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using SongUploadAPI.Extensions;
-using SongUploadAPI.Options;
 
 namespace SongUploadAPI.Hubs
 {
