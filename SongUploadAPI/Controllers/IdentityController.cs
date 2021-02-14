@@ -13,6 +13,7 @@ using SongUploadAPI.Services;
 namespace SongUploadAPI.Controllers
 {
     [Route("api/v1/[controller]")]
+    [Produces("application/json")]
     [ApiController]
     public class IdentityController : ControllerBase
     {
@@ -23,20 +24,18 @@ namespace SongUploadAPI.Controllers
         [HttpPost("register")]
         [ProducesResponseType(typeof(AuthSuccessResponse), 200)]
         [ProducesResponseType(typeof(AuthFailedResponse), 400)]
-        public async Task<IActionResult> Register([FromBody] UserRegistrationRequest request) => GenerateAuthResponse(
-            await _identityService.RegisterAsync(request.Email, request.Password));
+        public async Task<IActionResult> Register([FromBody] UserRegistrationRequest request) => 
+            GenerateAuthResponse(await _identityService.RegisterAsync(request.Email, request.Password));
 
         [HttpPost("login")]
         [ProducesResponseType(typeof(AuthSuccessResponse), 200)]
         [ProducesResponseType(typeof(AuthFailedResponse), 400)]
-        public async Task<IActionResult> Login([FromBody] UserLoginRequest request)
-        {
-            return GenerateAuthResponse(await _identityService.LoginAsync(request.Email, request.Password));
-        }
+        public async Task<IActionResult> Login([FromBody] UserLoginRequest request) => 
+            GenerateAuthResponse(await _identityService.LoginAsync(request.Email, request.Password));
 
         private IActionResult GenerateAuthResponse(Result<Token> authResponse) =>
             authResponse.Match<IActionResult>(
-                token => Ok(token.Value),
-                err => BadRequest(err.Message));
+                token => Ok(new AuthSuccessResponse(token)),
+                err => BadRequest(new AuthFailedResponse(err)));
     }
 }

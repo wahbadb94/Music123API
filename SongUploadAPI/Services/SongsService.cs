@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using SongUploadAPI.Contracts.Requests;
@@ -129,7 +130,7 @@ namespace SongUploadAPI.Services
 
             if (bindingSuccessful == false) return new Error( $"could not map form-data to type {songFormData.GetType().Name}");
 
-            var newSong = SongMapper.GetSongFromSongFormData(userId, songFormData, streamingUrl);
+            var newSong = SongMapper.CreateNewSongFromSongFormData(userId, songFormData, streamingUrl);
 
             try
             {
@@ -143,31 +144,56 @@ namespace SongUploadAPI.Services
             }
         }
 
-        public Result<IList<Song>> GetAllSongs(string userId)
+        public async Task<Result<IList<Song>>> GetAllSongsAsync(string userId) => await _dbContext.Songs
+            .Where(song => song.UserId == userId)
+            .ToListAsync();
+
+        public async Task<Result<Song>> GetSongAsync(string userId, string songId)
         {
-            try
-            {
-               return _dbContext.Songs.Where(song => song.UserId == userId).ToList();
-            }
-            catch (Exception e)
-            {
-                return new Error(e.Message);
-            }
+            var result = await _dbContext.Songs
+                .Where(song => song.UserId == userId)
+                .FirstOrDefaultAsync(song => song.Id.ToString() == songId);
+
+            if (result == null) return new Error("could not find song with that id");
+            
+            return result;
         }
 
-        public Task<Song> GetSongAsync(string userId, string songId)
-        {
-            throw new NotImplementedException();
-        }
+        public async Task<Result<Song>> UpdateSongAsync(string userId, string songId, SongFormData updatedSongData) =>
+            await (await GetSongAsync(userId, songId))
+                .Match(
+                    async foundSong =>
+                    {
+                        SongMapper.UpdateSongFromSongFormData(foundSong, updatedSongData);
+                        try
+                        {
+                            _dbContext.Songs.Update(foundSong);
+                            await _dbContext.SaveChangesAsync();
+                            return foundSong;
+                        }
+                        catch (Exception e)
+                        {
+                            return new Error(e.Message);
+                        }
+                    },
+                    error => Task.FromResult<Result<Song>>(error));
 
-        public Task<Song> UpdateSongAsync(string userId, string songId)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task<Song> DeleteSongAsync(string userId, string songId)
-        {
-            throw new NotImplementedException();
-        }
+        public async Task<Result<Song>> DeleteSongAsync(string userId, string songId) =>
+            await (await GetSongAsync(userId, songId))
+                .Match(
+                    async foundSong =>
+                    {
+                        _dbContext.Songs.Remove(foundSong);
+                        try
+                        {
+                            await _dbContext.SaveChangesAsync();
+                            return foundSong;
+                        }
+                        catch (Exception e)
+                        {
+                            return new Error(e.Message);
+                        }
+                    },
+                    err => Task.FromResult<Result<Song>>(err));
     }
 }

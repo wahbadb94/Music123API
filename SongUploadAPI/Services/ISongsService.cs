@@ -13,10 +13,9 @@ namespace SongUploadAPI.Services
         public delegate Task<bool> TryBindModelAsync(SongFormData songFormData, FormValueProvider formValueProvider);
 
         public Task<Result<Song>> CreateSongAsync(string userId, HttpRequest request, TryBindModelAsync tryBindModelAsync);
-        public Result<IList<Song>> GetAllSongs(string userId);
-        public Task<Song> GetSongAsync(string userId, string songId);
-        public Task<Song> UpdateSongAsync(string userId, string songId);
-        public Task<Song> DeleteSongAsync(string userId, string songId);
-
+        public Task<Result<IList<Song>>> GetAllSongsAsync(string userId);
+        public Task<Result<Song>> GetSongAsync(string userId, string songId);
+        public Task<Result<Song>> UpdateSongAsync(string userId, string songId, SongFormData updatedSongData);
+        public Task<Result<Song>> DeleteSongAsync(string userId, string songId);
     }
 }

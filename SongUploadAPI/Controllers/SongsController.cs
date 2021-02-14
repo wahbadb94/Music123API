@@ -9,19 +9,14 @@ using SongUploadAPI.Services;
 
 namespace SongUploadAPI.Controllers
 {
+    //TODO: add better swagger docs, check out nick chapsas's video on advanced swagger 
+
     [Route("api/[controller]")]
     [ApiController]
     public class SongsController : ControllerBase
     {
         private readonly ISongsService _songsService;
         public SongsController(ISongsService songsService) => _songsService = songsService;
-
-        [HttpGet]
-        public  IActionResult GetAll() =>
-            _songsService.GetAllSongs(HttpContext.GetUserId())
-                .Match<IActionResult>(
-                    Ok,
-                    err => BadRequest(err.Message));
 
         [DisableFormValueModelBinding]
         [HttpPost]
@@ -43,5 +38,34 @@ namespace SongUploadAPI.Controllers
                 },
                 error => BadRequest(error.Message));
         }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAll() =>
+            (await _songsService.GetAllSongsAsync(HttpContext.GetUserId()))
+                .Match<IActionResult>(
+                    Ok,
+                    err => BadRequest(err.Message));
+
+        [HttpGet("id")]
+        public async Task<IActionResult> Get(string songId) =>
+            (await _songsService.GetSongAsync(HttpContext.GetUserId(), songId))
+                .Match<IActionResult>(
+                    Ok,
+                    err => BadRequest(err.Message));
+
+        [HttpPut("id")]
+        public async Task<IActionResult> Put(string songId, [FromBody] SongFormData updatedSongData) =>
+            (await _songsService.UpdateSongAsync(HttpContext.GetUserId(), songId, updatedSongData))
+            .Match<IActionResult>(
+                Ok,
+                err => BadRequest(err.Message));
+
+        [HttpDelete("id")]
+        public async Task<IActionResult> Delete(string songId) =>
+            (await _songsService.DeleteSongAsync(HttpContext.GetUserId(), songId))
+                .Match<IActionResult>(
+                    Ok,
+                    err => BadRequest(err.Message));
+
     }
 }

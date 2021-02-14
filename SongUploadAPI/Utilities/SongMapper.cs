@@ -9,7 +9,7 @@ namespace SongUploadAPI.Utilities
 {
     public static class SongMapper
     {
-        public static Song GetSongFromSongFormData(string userId, SongFormData songFormData, string streamingUrl)
+        public static Song CreateNewSongFromSongFormData(string userId, SongFormData songFormData, string streamingUrl)
         {
             return new Song()
             {
@@ -21,6 +21,14 @@ namespace SongUploadAPI.Utilities
                 StreamingUrl = streamingUrl,
                 UserId = userId
             };
+        }
+
+        public static void UpdateSongFromSongFormData(Song oldData, SongFormData newData)
+        {
+            oldData.Artist = newData.Artist;
+            oldData.Name = newData.Name;
+            oldData.Bpm = newData.Bpm;
+            oldData.Key = newData.Key;
         }
     }
 }
