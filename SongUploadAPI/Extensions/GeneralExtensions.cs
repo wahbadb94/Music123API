@@ -8,6 +8,8 @@ namespace SongUploadAPI.Extensions
 {
     public static class GeneralExtensions
     {
+        // HTTP context extensions
+        //-------------------------
         public static string GetUserId(this HttpContext httpContext)
         {
             return httpContext.User == null
@@ -15,12 +17,6 @@ namespace SongUploadAPI.Extensions
                 : httpContext.User.Claims.Single(claim => claim.Type == "id").Value;
         }
 
-        public static string GetUserId(this HubCallerContext context)
-        {
-            return context.User == null
-                ? string.Empty
-                : context.User.Claims.Single(claim => claim.Type == "id").Value;
-        }
 
         public static bool HasFileContent(this ContentDispositionHeaderValue contentDisposition)
         {
@@ -46,6 +42,15 @@ namespace SongUploadAPI.Extensions
 
             return !string.IsNullOrEmpty(contentType)
                    && contentType.IndexOf("multipart/", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // signalR extensions
+        // ------------------
+        public static string GetUserId(this HubCallerContext context)
+        {
+            return context.User == null
+                ? string.Empty
+                : context.User.Claims.Single(claim => claim.Type == "id").Value;
         }
     }
 }
