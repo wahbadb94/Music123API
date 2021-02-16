@@ -8,6 +8,7 @@ namespace SongUploadAPI.Contracts.Requests
 {
     public class UserRegistrationRequest
     {
+        [EmailAddress]
         [Required]
         public string Email { get; set; }
 

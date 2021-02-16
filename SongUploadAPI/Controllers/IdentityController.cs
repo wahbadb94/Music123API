@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Threading.Tasks;
+using Mapster;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using SongUploadAPI.Contracts.Requests;
@@ -23,19 +24,19 @@ namespace SongUploadAPI.Controllers
 
         [HttpPost("register")]
         [ProducesResponseType(typeof(AuthSuccessResponse), 200)]
-        [ProducesResponseType(typeof(AuthFailedResponse), 400)]
+        [ProducesResponseType(typeof(ErrorResponse), 400)]
         public async Task<IActionResult> Register([FromBody] UserRegistrationRequest request) => 
             GenerateAuthResponse(await _identityService.RegisterAsync(request.Email, request.Password));
 
         [HttpPost("login")]
         [ProducesResponseType(typeof(AuthSuccessResponse), 200)]
-        [ProducesResponseType(typeof(AuthFailedResponse), 400)]
+        [ProducesResponseType(typeof(ErrorResponse), 400)]
         public async Task<IActionResult> Login([FromBody] UserLoginRequest request) => 
             GenerateAuthResponse(await _identityService.LoginAsync(request.Email, request.Password));
 
         private IActionResult GenerateAuthResponse(Result<Token> authResponse) =>
             authResponse.Match<IActionResult>(
                 token => Ok(new AuthSuccessResponse(token)),
-                err => BadRequest(new AuthFailedResponse(err)));
+                error => BadRequest(error.Adapt<ErrorResponse>()));
     }
 }

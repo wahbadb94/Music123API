@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Mapster;
+using MapsterMapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -16,7 +18,6 @@ using SongUploadAPI.Data;
 using SongUploadAPI.Domain;
 using SongUploadAPI.DTOs;
 using SongUploadAPI.Extensions;
-using SongUploadAPI.Mappers;
 using SongUploadAPI.Options;
 using SongUploadAPI.Utilities;
 
@@ -24,31 +25,31 @@ namespace SongUploadAPI.Services
 {
     public class SongsService : ISongsService
     {
-        private readonly FormOptions _defaultFormOptions = new FormOptions();
+        private readonly FormOptions _defaultFormOptions = new();
         private readonly ApplicationDbContext _dbContext;
         private readonly IJobNotificationService _jobNotificationService;
         private readonly IAmsSongUploadService _uploadService;
         private readonly long _uploadFileSizeLimit;
+        private readonly IMapper _mapper;
 
         public SongsService(ApplicationDbContext dbContext,
             IJobNotificationService jobNotificationService,
             IOptions<UploadSettings> uploadSettings,
-            IAmsSongUploadService uploadService)
+            IAmsSongUploadService uploadService,
+            IMapper mapper)
         {
             _dbContext = dbContext;
             _jobNotificationService = jobNotificationService;
             _uploadService = uploadService;
+            _mapper = mapper;
             _uploadFileSizeLimit = uploadSettings.Value.FileSizeLimit;
         }
 
         public async Task<Result<SongDto>> CreateSongAsync(string userId, HttpRequest request,
             ISongsService.TryBindModelAsync tryBindModelAsync)
         {
-            // TODO: (de-clutter) move manual reading of request body to it's own method that returns Result<Tuple<formData, streamingUrl>>
-
             if (!request.IsMultiPartContentType()) return new Error("request is not of type \"multipart/form-data\"");
 
-            // used for creating the resulting entity
             var streamingUrl = "";
 
             // manually read multipart/form-data one section at a time
@@ -131,7 +132,11 @@ namespace SongUploadAPI.Services
 
             if (bindingSuccessful == false) return new Error( $"could not map form-data to type {songFormData.GetType().Name}");
 
-            var newSong = SongMapper.SongFormDataToDto(userId, songFormData, streamingUrl);
+            // weird Mapster syntax for mapping runtime values, don't really like these "magic strings"
+            var newSong = _mapper.From(songFormData)
+                .AddParameters("userId", userId)
+                .AddParameters("streamingUrl", streamingUrl)
+                .AdaptToType<SongDto>();
 
             try
             {
@@ -165,7 +170,7 @@ namespace SongUploadAPI.Services
                 .Match(
                     async foundSong =>
                     {
-                        SongMapper.UpdateSongDtoFromFormData(foundSong, updatedSongData);
+                        updatedSongData.Adapt(foundSong);
                         try
                         {
                             _dbContext.Songs.Update(foundSong);
