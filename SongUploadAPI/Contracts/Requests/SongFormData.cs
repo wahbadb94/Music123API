@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-
-namespace SongUploadAPI.Contracts.Requests
+﻿namespace SongUploadAPI.Contracts.Requests
 {
     public class SongFormData
     {

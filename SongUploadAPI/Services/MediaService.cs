@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.Azure.Management.Media;
 using Microsoft.Azure.Management.Media.Models;
@@ -14,7 +11,6 @@ using Microsoft.Rest.Azure.Authentication;
 using SongUploadAPI.Options;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using SongUploadAPI.Utilities;
 
 namespace SongUploadAPI.Services
 {

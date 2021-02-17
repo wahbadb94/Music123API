@@ -9,7 +9,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Mvc;
 using SongUploadAPI.DTOs;
 
 namespace SongUploadAPI.Services
