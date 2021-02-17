@@ -150,9 +150,19 @@ namespace SongUploadAPI.Services
             }
         }
 
-        public async Task<Result<IList<SongDto>>> GetAllSongsAsync(string userId) => await _dbContext.Songs
-            .Where(song => song.UserId == userId)
-            .ToListAsync();
+        public async Task<Result<IList<SongDto>>> GetAllSongsAsync(string userId)
+        {
+            try
+            {
+                return await _dbContext.Songs
+                    .Where(song => song.UserId == userId)
+                    .ToListAsync();
+            }
+            catch (Exception e)
+            {
+                return new Error(e.Message);
+            }
+        }
 
         public async Task<Result<SongDto>> GetSongAsync(string userId, string songId)
         {
